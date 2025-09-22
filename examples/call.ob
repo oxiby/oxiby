@@ -1,0 +1,7 @@
+fn id(s: String) -> String {
+  s
+}
+
+fn main() {
+  id("yo")
+}

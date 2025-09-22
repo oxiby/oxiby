@@ -1,0 +1,8 @@
+struct Two(Integer, Integer)
+
+fn main() {
+    let two = Two(3, 4)
+
+    print_line(two.0)
+    print_line(two.1)
+}

@@ -1,0 +1,11 @@
+pub struct List<t> {
+    pub fn times(n: Integer, f: f) -> List<t> where f: Fn() -> t {
+        let list = []
+
+        for i in (1..=n) {
+            list.push(f.call())
+        }
+
+        list
+    }
+}

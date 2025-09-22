@@ -1,0 +1,11 @@
+pub enum Option<t> {
+    Some(t),
+    None,
+
+    pub fn unwrap_or(self, default: t) -> t {
+        match self {
+            Some(t) -> t,
+            None -> default,
+        }
+    }
+}

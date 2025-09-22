@@ -1,0 +1,562 @@
+use chumsky::input::BorrowInput;
+use chumsky::pratt::{Operator as _, infix, left, postfix, prefix};
+use chumsky::prelude::*;
+use chumsky::span::SimpleSpan;
+
+use crate::Spanned;
+use crate::ast::Operator;
+use crate::compiler::{Scope, WriteRuby};
+use crate::token::Token;
+
+mod expr_block;
+mod expr_boolean;
+mod expr_break;
+mod expr_call;
+mod expr_closure;
+mod expr_conditional;
+mod expr_continue;
+mod expr_enum;
+mod expr_float;
+mod expr_for_loop;
+mod expr_hash_map;
+mod expr_ident;
+mod expr_integer;
+mod expr_let;
+mod expr_list;
+mod expr_loop;
+mod expr_match;
+mod expr_parenthesized;
+mod expr_range;
+mod expr_return;
+mod expr_ruby;
+mod expr_string;
+mod expr_struct;
+mod expr_tuple;
+mod expr_while_loop;
+
+pub use expr_block::ExprBlock;
+pub use expr_boolean::ExprBoolean;
+pub use expr_break::ExprBreak;
+pub use expr_call::ExprCall;
+pub use expr_closure::ExprClosure;
+pub use expr_conditional::ExprConditional;
+pub use expr_continue::ExprContinue;
+pub use expr_enum::ExprEnum;
+pub use expr_float::ExprFloat;
+pub use expr_for_loop::ExprForLoop;
+pub use expr_hash_map::ExprHashMap;
+pub use expr_ident::{ExprIdent, ExprTypeIdent};
+pub use expr_integer::ExprInteger;
+pub use expr_let::ExprLet;
+pub use expr_list::ExprList;
+pub use expr_loop::ExprLoop;
+pub use expr_match::ExprMatch;
+pub use expr_parenthesized::ExprParenthesized;
+pub use expr_range::ExprRange;
+pub use expr_return::ExprReturn;
+pub use expr_ruby::ExprRuby;
+pub use expr_string::ExprString;
+pub use expr_struct::ExprStruct;
+pub use expr_tuple::ExprTuple;
+pub use expr_while_loop::ExprWhileLoop;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Expr<'a> {
+    // Literals
+    Boolean(ExprBoolean),
+    Integer(ExprInteger),
+    Float(ExprFloat),
+    String(ExprString<'a>),
+    Range(ExprRange<'a>),
+
+    // Compound primitives
+    HashMap(ExprHashMap<'a>),
+    List(ExprList<'a>),
+    Tuple(ExprTuple<'a>),
+
+    // Data structures
+    Struct(ExprStruct<'a>),
+    Enum(ExprEnum<'a>),
+
+    // Identifiers
+    ExprIdent(ExprIdent<'a>),
+    TypeIdent(ExprTypeIdent<'a>),
+
+    // Member access
+    Field(ExprField<'a>),
+    Index(ExprIndex<'a>),
+
+    // Calls
+    Call(ExprCall<'a>),
+    Closure(ExprClosure<'a>),
+
+    // Control flow
+    Break(ExprBreak<'a>),
+    Conditional(ExprConditional<'a>),
+    Continue(ExprContinue),
+    ForLoop(ExprForLoop<'a>),
+    Loop(ExprLoop<'a>),
+    Return(ExprReturn<'a>),
+    WhileLoop(ExprWhileLoop<'a>),
+
+    // Patterns
+    Let(ExprLet<'a>),
+    Match(ExprMatch<'a>),
+
+    // Misc.
+    Block(ExprBlock<'a>),
+    Unary(ExprUnary<'a>),
+    Binary(ExprBinary<'a>),
+    Parenthesized(ExprParenthesized<'a>),
+    Ruby(ExprRuby<'a>),
+}
+
+impl<'a> Expr<'a> {
+    pub fn parser<I, M>(
+        make_input: M,
+    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
+    where
+        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
+        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
+    {
+        recursive(|expr| {
+            choice((
+                ExprCall::parser(expr.clone()).map(Expr::Call).boxed(), // must come before ExprIdent
+                ExprBoolean::parser().map(Expr::Boolean).boxed(),
+                ExprInteger::parser().map(Expr::Integer).boxed(),
+                ExprFloat::parser().map(Expr::Float).boxed(),
+                ExprString::parser(expr.clone(), make_input.clone())
+                    .map(Expr::String)
+                    .boxed(),
+                ExprRange::parser(expr.clone()).map(Expr::Range).boxed(),
+                ExprList::parser(expr.clone()).map(Expr::List).boxed(),
+                ExprTuple::parser(expr.clone()).map(Expr::Tuple).boxed(),
+                ExprEnum::parser(expr.clone()).map(Expr::Enum).boxed(),
+                ExprStruct::parser(expr.clone()).map(Expr::Struct).boxed(),
+                ExprIdent::parser().map(Expr::ExprIdent).boxed(),
+                ExprTypeIdent::parser().map(Expr::TypeIdent).boxed(),
+                ExprHashMap::parser(expr.clone()).map(Expr::HashMap).boxed(),
+                ExprClosure::parser(expr.clone()).map(Expr::Closure).boxed(),
+                ExprBreak::parser(expr.clone()).map(Expr::Break).boxed(),
+                ExprConditional::parser(expr.clone())
+                    .map(Expr::Conditional)
+                    .boxed(),
+                ExprContinue::parser().map(Expr::Continue).boxed(),
+                ExprForLoop::parser(expr.clone(), make_input.clone())
+                    .map(Expr::ForLoop)
+                    .boxed(),
+                ExprLoop::parser(expr.clone()).map(Expr::Loop).boxed(),
+                ExprReturn::parser(expr.clone()).map(Expr::Return).boxed(),
+                ExprWhileLoop::parser(expr.clone())
+                    .map(Expr::WhileLoop)
+                    .boxed(),
+                ExprLet::parser(expr.clone(), make_input.clone())
+                    .map(Expr::Let)
+                    .boxed(),
+                ExprMatch::parser(expr.clone(), make_input)
+                    .map(Expr::Match)
+                    .boxed(),
+                ExprBlock::parser(expr.clone()).map(Expr::Block).boxed(),
+                ExprParenthesized::parser(expr.clone())
+                    .map(Expr::Parenthesized)
+                    .boxed(),
+                ExprRuby::parser().map(Expr::Ruby).boxed(),
+            ))
+            .boxed()
+            .pratt((
+                prefix(
+                    3,
+                    choice((
+                        just(Token::Sub).to(Operator::Sub),
+                        just(Token::Not).to(Operator::Not),
+                    ))
+                    .labelled("operator"),
+                    |op, rhs: Expr, extra| {
+                        Expr::Unary(ExprUnary {
+                            op,
+                            expr: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                postfix(
+                    3,
+                    expr.delimited_by(just(Token::LBracket), just(Token::RBracket)),
+                    |lhs, op, extra| {
+                        Expr::Index(ExprIndex {
+                            expr: Box::new(lhs),
+                            index: Box::new(op),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::Dot).labelled("operator"),
+                    |lhs: Expr, _, mut rhs, extra| {
+                        // Let the call know it isn't a free function because that changes how
+                        // imports are resolved.
+                        if let Self::Call(ref mut expr_call) = rhs {
+                            expr_call.set_field();
+                        }
+
+                        Expr::Field(ExprField {
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::Assign).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::Assign,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::AddAssign).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::AddAssign,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::DivAssign).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::DivAssign,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::MultAssign).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::MultAssign,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::Assign).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::SubAssign,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::And).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::And,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::Or).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::Or,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::Eq).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::Eq,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::Ne).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::Ne,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::LtEq).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::LtEq,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::GtEq).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::GtEq,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::Lt).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::Lt,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::Gt).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::Gt,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::Mul).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::Mul,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::Div).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::Div,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::Mod).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::Mod,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::Add).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::Add,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+                infix(
+                    left(2),
+                    just(Token::Sub).labelled("operator"),
+                    |lhs: Expr, _, rhs, extra| {
+                        Expr::Binary(ExprBinary {
+                            op: Operator::Sub,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            span: extra.span(),
+                        })
+                    },
+                )
+                .boxed(),
+            ))
+            .boxed()
+        })
+        .labelled("expression")
+        .as_context()
+        .boxed()
+    }
+}
+
+impl WriteRuby for Expr<'_> {
+    fn write_ruby(&self, scope: &mut Scope) {
+        match self {
+            Self::Boolean(expr_boolean) => expr_boolean.write_ruby(scope),
+            Self::Integer(expr_integer) => expr_integer.write_ruby(scope),
+            Self::Float(expr_float) => expr_float.write_ruby(scope),
+            Self::String(expr_string) => expr_string.write_ruby(scope),
+            Self::Range(expr_range) => expr_range.write_ruby(scope),
+            Self::HashMap(expr_hash_map) => expr_hash_map.write_ruby(scope),
+            Self::List(expr_list) => expr_list.write_ruby(scope),
+            Self::Tuple(expr_tuple) => expr_tuple.write_ruby(scope),
+            Self::Struct(expr_struct) => expr_struct.write_ruby(scope),
+            Self::Enum(expr_enum) => expr_enum.write_ruby(scope),
+            Self::ExprIdent(expr_ident) => expr_ident.write_ruby(scope),
+            Self::TypeIdent(expr_type_ident) => expr_type_ident.write_ruby(scope),
+            Self::Field(expr_field) => expr_field.write_ruby(scope),
+            Self::Index(expr_index) => expr_index.write_ruby(scope),
+            Self::Call(expr_call) => expr_call.write_ruby(scope),
+            Self::Closure(expr_closure) => expr_closure.write_ruby(scope),
+            Self::Break(expr_break) => expr_break.write_ruby(scope),
+            Self::Conditional(expr_conditional) => expr_conditional.write_ruby(scope),
+            Self::Continue(expr_continue) => expr_continue.write_ruby(scope),
+            Self::ForLoop(expr_for_loop) => expr_for_loop.write_ruby(scope),
+            Self::Loop(expr_loop) => expr_loop.write_ruby(scope),
+            Self::Return(expr_return) => expr_return.write_ruby(scope),
+            Self::WhileLoop(expr_while_loop) => expr_while_loop.write_ruby(scope),
+            Self::Let(expr_let) => expr_let.write_ruby(scope),
+            Self::Match(expr_match) => expr_match.write_ruby(scope),
+            Self::Block(expr_block) => expr_block.write_ruby(scope),
+            Self::Unary(expr_unary) => expr_unary.write_ruby(scope),
+            Self::Binary(expr_binary) => expr_binary.write_ruby(scope),
+            Self::Parenthesized(expr_parenthesized) => expr_parenthesized.write_ruby(scope),
+            Self::Ruby(expr_ruby) => expr_ruby.write_ruby(scope),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprBinary<'a> {
+    op: Operator,
+    lhs: Box<Expr<'a>>,
+    rhs: Box<Expr<'a>>,
+    span: SimpleSpan,
+}
+
+impl WriteRuby for ExprBinary<'_> {
+    fn write_ruby(&self, scope: &mut Scope) {
+        self.lhs.write_ruby(scope);
+        scope.fragment(format!(" {} ", self.op));
+        self.rhs.write_ruby(scope);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprUnary<'a> {
+    op: Operator,
+    expr: Box<Expr<'a>>,
+    span: SimpleSpan,
+}
+
+impl WriteRuby for ExprUnary<'_> {
+    fn write_ruby(&self, scope: &mut Scope) {
+        scope.fragment(self.op.to_string());
+        self.expr.write_ruby(scope);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprField<'a> {
+    lhs: Box<Expr<'a>>,
+    rhs: Box<Expr<'a>>,
+    span: SimpleSpan,
+}
+
+impl WriteRuby for ExprField<'_> {
+    fn write_ruby(&self, scope: &mut Scope) {
+        let self_receiver =
+            matches!(*self.lhs, Expr::ExprIdent(ref expr_ident) if expr_ident.as_str() == "self");
+
+        if !self_receiver {
+            self.lhs.write_ruby(scope);
+            scope.fragment(".");
+        }
+
+        if let Expr::Integer(_) = *self.rhs {
+            scope.fragment("__");
+        }
+
+        self.rhs.write_ruby(scope);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprIndex<'a> {
+    expr: Box<Expr<'a>>,
+    index: Box<Expr<'a>>,
+    span: SimpleSpan,
+}
+
+impl WriteRuby for ExprIndex<'_> {
+    fn write_ruby(&self, scope: &mut Scope) {
+        self.expr.write_ruby(scope);
+        scope.fragment("[");
+        self.index.write_ruby(scope);
+        scope.fragment("]");
+    }
+}

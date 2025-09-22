@@ -1,0 +1,59 @@
+enum Message {
+  Quit,
+  Move { x: Integer, y: Integer },
+  Write(String),
+  ChangeColor(Integer, Integer, Integer),
+}
+
+fn message() {
+  let message = [
+    Message.Quit,
+    Message.Move { x: 1, y: 2 },
+    Message.Write("hello"),
+    Message.ChangeColor(4, 5, 6),
+  ].sample()
+
+  let output = match message {
+    Message.Quit -> "I quit!",
+    Message.Move { x, y } -> "Move #{x} by #{y}.",
+    Message.Write(s) -> "Here's a message: #{s}.",
+    Message.ChangeColor(r, g, b) -> "Red: #{r}, Green: #{g}, Blue: #{b}.",
+  }
+
+  print_line(output)
+}
+
+fn match_tuples() {
+  match ("hello", "world") {
+    (greeting, "world") -> print_line("Said #{greeting} to the world.")
+  }
+}
+
+fn let_tuples() {
+  let (x, y) = (1, 2)
+
+  print_line("#{x} + #{y} = #{x + y}")
+}
+
+struct Dog {
+  pub name: String,
+  pub breed: String,
+}
+
+fn structs() {
+  let dog = Dog {
+    name: "Carl",
+    breed: "Pug",
+  }
+
+  let Dog { name, breed } = dog
+
+  print_line("#{name} is a #{breed}.")
+}
+
+fn main() {
+  message()
+  match_tuples()
+  let_tuples()
+  structs()
+}

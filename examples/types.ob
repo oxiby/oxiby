@@ -1,0 +1,91 @@
+use self E.U, E.T, E.S -> St
+
+struct S {
+    a: String,
+    b: String,
+}
+
+struct GenS<a, b> {
+    a: a,
+    b: b,
+}
+
+enum E {
+    U,
+    T(String, String),
+    S {
+      c: String,
+      d: String,
+    },
+}
+
+enum GenE<a, b, c, d> {
+    U,
+    T(a, b),
+    S {
+        c: c,
+        d: d,
+    },
+}
+
+trait Empty {}
+
+trait OneGeneric<t> {}
+
+trait Child where Self: Empty {}
+
+trait ConstrainedGeneric<t> where t: Empty {}
+
+trait OneAssoc {
+    type A
+
+    pub fn test() -> Self.A
+}
+
+impl Empty for S {}
+
+impl OneGeneric<E> for S {}
+
+impl Child for S {}
+
+impl ConstrainedGeneric<E> for S {}
+
+impl OneAssoc for S {
+    type A = String
+
+    pub fn test() -> Self.A {
+      "test"
+    }
+}
+
+fn main() {
+    let s = S {
+      a: "a",
+      b: "b",
+    }
+
+    let unit = E.U
+    let tuple = E.T("1", "2")
+    let strct = E.S {
+      c: "c",
+      d: "d",
+    }
+
+    let assoc = S.test()
+
+    let x = match tuple {
+      E.U -> "unit",
+      E.T(x, y) -> "tuple: 0=#{x}, 1=#{y}",
+      E.S { c, d } -> "struct: c=#{c}, d=#{d}",
+    }
+
+    // TODO: This should do exactly the same thing as the match just above, because `U`, `T`, and `St`
+    // were imported at the top. This will require the compiler tracking the aliases, but this match
+    // and the one just above should emit identical Ruby.
+    //
+    // let y = match tuple {
+    //   U -> "unit",
+    //   T(x, y) -> "tuple: 0=#{x}, 1=#{y}",
+    //   St { c, d } -> "struct: c=#{c}, d=#{d}",
+    // }
+}

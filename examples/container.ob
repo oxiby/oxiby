@@ -1,0 +1,9 @@
+struct Container<t>(t)
+
+fn main() {
+    let contained_integer = Container(1)
+    let contained_string = Container("Oxiby")
+
+    print_line(contained_integer)
+    print_line(contained_string)
+}

@@ -1,0 +1,200 @@
+use chumsky::input::BorrowInput;
+use chumsky::prelude::*;
+
+use crate::Spanned;
+use crate::ast::Visibility;
+use crate::compiler::{Scope, WriteRuby};
+use crate::expr::{Expr, ExprIdent};
+use crate::token::Token;
+use crate::types::{Constraint, Type};
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ItemFn<'a> {
+    visibility: Visibility,
+    name: ExprIdent<'a>,
+    self_param: bool,
+    associated_fn: bool,
+    positional_params: Vec<FnParam<'a>>,
+    keyword_params: Vec<FnParam<'a>>,
+    return_ty: Option<Type<'a>>,
+    constraints: Option<Vec<Constraint<'a>>>,
+    body: Option<Vec<Expr<'a>>>,
+    span: SimpleSpan,
+}
+
+impl<'a> ItemFn<'a> {
+    pub fn parser<I, M>(
+        make_input: M,
+        associated_fn: bool,
+    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
+    where
+        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
+        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
+    {
+        let param_list = choice((
+            just(Token::SelfTerm)
+                .map(|_| (true, Vec::with_capacity(0), Vec::with_capacity(0)))
+                .delimited_by(just(Token::LParen), just(Token::RParen)),
+            just(Token::SelfTerm)
+                .ignore_then(just(Token::Comma))
+                .or_not()
+                .then(
+                    FnParam::parser()
+                        .separated_by(just(Token::Comma))
+                        .allow_trailing()
+                        .collect::<Vec<_>>(),
+                )
+                .then(
+                    just(Token::Colon)
+                        .ignore_then(FnParam::parser())
+                        .separated_by(just(Token::Comma))
+                        .allow_trailing()
+                        .collect::<Vec<_>>(),
+                )
+                .delimited_by(just(Token::LParen), just(Token::RParen))
+                .map(|((maybe_self, pos_params), kw_params)| {
+                    (maybe_self.is_some(), pos_params, kw_params)
+                }),
+        ))
+        .labelled("function parameter list")
+        .boxed();
+
+        Visibility::parser()
+            .then_ignore(just(Token::Fn))
+            .then(ExprIdent::parser())
+            .then(param_list)
+            .then(just(Token::Arrow).ignore_then(Type::parser()).or_not())
+            .then(Constraint::where_parser().or_not())
+            .then(
+                Expr::parser(make_input)
+                    .repeated()
+                    .collect::<Vec<_>>()
+                    .delimited_by(just(Token::LBrace), just(Token::RBrace))
+                    .or_not(),
+            )
+            .map_with(
+                move |(
+                    (
+                        (
+                            ((visibility, name), (self_param, positional_params, keyword_params)),
+                            return_ty,
+                        ),
+                        constraints,
+                    ),
+                    body,
+                ),
+                      extra| ItemFn {
+                    visibility,
+                    name,
+                    self_param,
+                    associated_fn,
+                    positional_params,
+                    keyword_params,
+                    return_ty,
+                    constraints,
+                    body,
+                    span: extra.span(),
+                },
+            )
+            .labelled("function")
+            .as_context()
+    }
+
+    #[inline]
+    pub fn has_params(&self) -> bool {
+        self.has_self_param() || self.has_positional_params() || self.has_keyword_params()
+    }
+
+    #[inline]
+    pub fn has_self_param(&self) -> bool {
+        self.self_param
+    }
+
+    #[inline]
+    pub fn has_explicit_params(&self) -> bool {
+        !self.positional_params.is_empty() || !self.keyword_params.is_empty()
+    }
+
+    #[inline]
+    pub fn has_positional_params(&self) -> bool {
+        !self.positional_params.is_empty()
+    }
+
+    #[inline]
+    pub fn has_keyword_params(&self) -> bool {
+        !self.keyword_params.is_empty()
+    }
+}
+
+impl WriteRuby for ItemFn<'_> {
+    fn write_ruby(&self, scope: &mut Scope) {
+        let mut def = if self.self_param {
+            format!("def {}", self.name)
+        } else {
+            format!("def self.{}", self.name)
+        };
+
+        if self.has_explicit_params() {
+            def.push('(');
+
+            def.push_str(
+                &self
+                    .positional_params
+                    .iter()
+                    .map(|param| param.ident.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+
+            if self.has_positional_params() && self.has_keyword_params() {
+                def.push_str(", ");
+            }
+
+            def.push_str(
+                &self
+                    .keyword_params
+                    .iter()
+                    .map(|param| format!("{}:", param.ident))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+
+            def.push(')');
+        }
+
+        scope.block_with_end(def, |scope| {
+            if let Some(exprs) = &self.body {
+                for expr in exprs {
+                    expr.write_ruby(scope);
+                    scope.newline();
+                }
+            }
+        });
+
+        if self.name.as_str() == "main" {
+            scope.newline();
+            scope.line("main");
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FnParam<'a> {
+    ident: ExprIdent<'a>,
+    ty: Type<'a>,
+}
+
+impl<'a> FnParam<'a> {
+    pub fn parser<I>()
+    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
+    where
+        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
+    {
+        ExprIdent::parser()
+            .then_ignore(just(Token::Colon))
+            .then(Type::parser())
+            .map(|(ident, ty)| Self { ident, ty })
+            .labelled("positional function parameter")
+            .as_context()
+    }
+}

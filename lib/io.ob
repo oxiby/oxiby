@@ -1,0 +1,25 @@
+pub trait ToString {
+    fn to_string(self) -> String
+}
+
+pub fn print_line(s: s) where s: ToString {
+    if s.public_send("respond_to?", "to_string") {
+        puts(s.to_string())
+    } else {
+        puts(s)
+    }
+}
+
+pub fn print(s: s) where s: ToString {
+    Kernel.print(s)
+}
+
+pub fn read_line() -> Result<String, String> {
+    let input = gets()
+
+    if ruby { input.nil? } {
+        Err("no input was received")
+    } else {
+        Ok(input)
+    }
+}

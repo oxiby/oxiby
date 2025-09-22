@@ -1,0 +1,24 @@
+[package]
+name = "oxiby"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "The Oxiby programming language"
+documentation = "https://www.oxiby.com/"
+homepage = "https://www.oxiby.com/"
+repository = "https://github.com/oxiby/oxiby"
+license = "Apache-2.0 WITH LLVM-exception"
+keywords = ["language", "compiler", "rust", "ruby", "oxiby"]
+categories = ["command-line-utilities", "compilers", "parser-implementations"]
+
+[[bin]]
+name = "obc"
+path = "src/main.rs"
+
+[dependencies]
+ariadne = "0.6.0"
+chumsky = { version = "0.11.1", features = ["pratt"] }
+clap = "4.5.50"
+
+[dev-dependencies]
+pretty_assertions = "1.4.1"

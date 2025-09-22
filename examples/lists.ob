@@ -1,0 +1,12 @@
+fn single_index() {
+  ["hello"][0]
+}
+
+fn double_index_across_multiple_lines() {
+  ["hello"]
+  [0]["bar"]
+}
+
+fn two_lists() {
+  (["one"], ["two"])
+}

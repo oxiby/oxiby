@@ -1,0 +1,8 @@
+edition = "2024"
+style_edition = "2024"
+
+format_strings = true
+group_imports = "StdExternalCrate"
+imports_granularity = "Module"
+imports_layout = "HorizontalVertical"
+match_arm_leading_pipes = "Preserve"

@@ -1,0 +1,18 @@
+pub enum Result<t, e> {
+    Ok(t),
+    Err(e),
+
+    pub fn map(self, f: f) where f: Fn(t) -> u {
+        match self {
+            Ok(t) -> Ok(f.call(t)),
+            Err(_) -> self,
+        }
+    }
+
+    pub fn unwrap_or(self, default: t) -> t {
+        match self {
+            Ok(t) -> t,
+            Err(_) -> default,
+        }
+    }
+}
