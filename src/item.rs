@@ -31,10 +31,8 @@ impl WriteRuby for Item<'_> {
             Self::Enum(item_enum) => item_enum.write_ruby(scope),
             Self::Impl(item_impl) => item_impl.write_ruby(scope),
             Self::Use(item_use) => {
-                if !item_use.is_self_module() {
-                    item_use.add_imports(scope);
-                    item_use.write_ruby(scope);
-                }
+                item_use.add_imports(scope);
+                item_use.write_ruby(scope);
             }
             // Trait definitions do not have corresponding Ruby code.
             Self::Trait(..) => (),

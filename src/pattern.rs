@@ -257,9 +257,15 @@ impl WriteRuby for PatternCtor<'_> {
         // variants after import resolution which we don't want here. Find a cleaner way to handle
         // this.
         let ty_ident_string = self.ty_ident.to_string();
-        match scope.resolve_ident(&ty_ident_string) {
-            Some((path, _kind)) => scope.fragment(path),
-            None => scope.fragment(ty_ident_string),
+
+        // If the type is A.B we shouldn't try to resolve B on its own.
+        if self.parent_ty_ident.is_none() {
+            match scope.resolve_ident(&ty_ident_string) {
+                Some((path, _kind)) => scope.fragment(path),
+                None => scope.fragment(ty_ident_string),
+            }
+        } else {
+            scope.fragment(ty_ident_string);
         }
 
         match &self.idents {

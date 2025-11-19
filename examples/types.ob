@@ -79,13 +79,9 @@ fn main() {
       E.S { c, d } -> "struct: c=#{c}, d=#{d}",
     }
 
-    // TODO: This should do exactly the same thing as the match just above, because `U`, `T`, and `St`
-    // were imported at the top. This will require the compiler tracking the aliases, but this match
-    // and the one just above should emit identical Ruby.
-    //
-    // let y = match tuple {
-    //   U -> "unit",
-    //   T(x, y) -> "tuple: 0=#{x}, 1=#{y}",
-    //   St { c, d } -> "struct: c=#{c}, d=#{d}",
-    // }
+    let y = match tuple {
+      U -> "unit",
+      T(x, y) -> "tuple: 0=#{x}, 1=#{y}",
+      St { c, d } -> "struct: c=#{c}, d=#{d}",
+    }
 }

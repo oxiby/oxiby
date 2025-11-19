@@ -11,6 +11,7 @@ use crate::types::TypeIdent;
 pub struct ItemUse<'a> {
     path: Vec<ExprIdent<'a>>,
     is_self: bool,
+    is_std: bool,
     idents: Vec<ImportedIdent<'a>>,
     span: SimpleSpan,
 }
@@ -44,23 +45,28 @@ impl<'a> ItemUse<'a> {
                     .at_least(1)
                     .collect::<Vec<_>>(),
                 )
-                .map_with(|(path, idents), extra| {
-                    let is_self = path[0].as_str() == "self";
+                .try_map(|(path, idents), span| {
+                    let first_path_segment = path[0].as_str();
+                    let is_self = first_path_segment == "self";
+                    let is_std = first_path_segment == "std";
 
-                    ItemUse {
+                    // TODO: Like the `try_map` in `ItemFn`, this triggers under the right condition
+                    // but the custom error message doesn't show up.
+                    if is_self && path.len() > 1 {
+                        return Err(Rich::custom(span, "Module paths cannot begin with `self`"));
+                    }
+
+                    Ok(ItemUse {
                         path,
                         is_self,
+                        is_std,
                         idents,
-                        span: extra.span(),
-                    }
+                        span,
+                    })
                 })
                 .labelled("use statement")
                 .as_context(),
         )
-    }
-
-    pub fn is_self_module(&self) -> bool {
-        self.is_self
     }
 
     pub fn add_imports(&self, scope: &mut Scope) {
@@ -110,7 +116,7 @@ impl<'a> ItemUse<'a> {
 
 impl WriteRuby for ItemUse<'_> {
     fn write_ruby(&self, scope: &mut Scope) {
-        if self.path[0].as_str() == "std" {
+        if self.is_self || self.is_std {
             return;
         }
 

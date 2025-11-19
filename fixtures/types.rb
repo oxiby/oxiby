@@ -156,12 +156,20 @@ module Types
   end
 
   def self.main
-    s = S.new(a: "a", b: "b")
-    unit = E::U.new
-    tuple = E::T.new("1", "2")
-    strct = E::S.new(c: "c", d: "d")
+    s = S.allocate.tap { |__oxiby_new| __oxiby_new.send(:initialize, a: "a", b: "b") }
+    unit = E::U.allocate
+    tuple = E::T.allocate.tap { |__oxiby_new| __oxiby_new.send(:initialize, "1", "2") }
+    strct = E::S.allocate.tap { |__oxiby_new| __oxiby_new.send(:initialize, c: "c", d: "d") }
     assoc = S.test
     x = case tuple
+    in E::U
+      "unit"
+    in E::T(x, y)
+      "tuple: 0=#{x}, 1=#{y}"
+    in E::S(c:, d:)
+      "struct: c=#{c}, d=#{d}"
+    end
+    y = case tuple
     in E::U
       "unit"
     in E::T(x, y)

@@ -180,19 +180,21 @@ impl Scope {
     where
         S: Into<String>,
     {
-        let import = import.into();
-
-        // The special "self" module will be used for aliasing enum variants defined in the current
-        // module. Not supported yet.
-        if import != "self" {
-            self.imports.insert(import, (path.into(), kind));
-        }
+        self.imports.insert(import.into(), (path.into(), kind));
     }
 
     pub fn resolve_ident(&self, alias: &str) -> Option<(String, ImportKind)> {
-        self.imports
-            .get(alias)
-            .map(|(path, kind)| (path.to_string(), *kind))
+        self.imports.get(alias).map(|(path, kind)| {
+            (
+                // Imports will still constantize `self` even though it's a special module.
+                // It's safe to strip off this prefix because we don't allow modules named "self",
+                // so if it shows up here, we know it's the special `self` module.
+                path.strip_prefix("::Self::")
+                    .unwrap_or_else(|| path)
+                    .to_string(),
+                *kind,
+            )
+        })
     }
 
     pub fn ruby_module_constants(&self) -> RubyModuleConstants {
