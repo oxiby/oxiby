@@ -4,7 +4,7 @@ require_relative "std/all"
 
 module ResultTuple
   def self.result_tuple
-    ::Std::Result::Result::Ok.new([])
+    ::Std::Result::Result::Ok.new(::Std::Tuple::Tuple.new(fields: []))
   end
 
   def self.main

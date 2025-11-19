@@ -93,14 +93,14 @@ module Patterns
   end
 
   def self.match_tuples
-    case ["hello", "world"]
+    case ::Std::Tuple::Tuple.new(fields: ["hello", "world"])
     in [greeting, "world"]
       ::Std::Io.print_line("Said #{greeting} to the world.")
     end
   end
 
   def self.let_tuples
-    x, y = [1, 2]
+    x, y = ::Std::Tuple::Tuple.new(fields: [1, 2])
     ::Std::Io.print_line("#{x} + #{y} = #{x + y}")
   end
 

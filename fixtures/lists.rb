@@ -12,6 +12,6 @@ module Lists
   end
 
   def self.two_lists
-    [["one"], ["two"]]
+    ::Std::Tuple::Tuple.new(fields: [["one"], ["two"]])
   end
 end

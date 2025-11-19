@@ -88,50 +88,50 @@ module TicTacToe
 
     def winner
       ((0..2)).each do |row|
-        case [rows[row][0], rows[row][1], rows[row][2]]
+        case ::Std::Tuple::Tuple.new(fields: [rows[row][0], rows[row][1], rows[row][2]])
         in [::Std::Option::Option::Some(a), ::Std::Option::Option::Some(b), ::Std::Option::Option::Some(c)]
             if a == b && b == c
               return Winner::Player.new(a)
             end
 
         else
-          []
+          ::Std::Tuple::Tuple.new(fields: [])
         end
       end
       ((0..2)).each do |column|
-        case [rows[0][column], rows[1][column], rows[2][column]]
+        case ::Std::Tuple::Tuple.new(fields: [rows[0][column], rows[1][column], rows[2][column]])
         in [::Std::Option::Option::Some(a), ::Std::Option::Option::Some(b), ::Std::Option::Option::Some(c)]
             if a == b && b == c
               return Winner::Player.new(a)
             end
 
         else
-          []
+          ::Std::Tuple::Tuple.new(fields: [])
         end
       end
-      case [rows[0][0], rows[1][1], rows[2][2]]
+      case ::Std::Tuple::Tuple.new(fields: [rows[0][0], rows[1][1], rows[2][2]])
       in [::Std::Option::Option::Some(a), ::Std::Option::Option::Some(b), ::Std::Option::Option::Some(c)]
           if a == b && b == c
             return Winner::Player.new(a)
           end
 
       else
-        []
+        ::Std::Tuple::Tuple.new(fields: [])
       end
-      case [rows[0][2], rows[1][1], rows[2][0]]
+      case ::Std::Tuple::Tuple.new(fields: [rows[0][2], rows[1][1], rows[2][0]])
       in [::Std::Option::Option::Some(a), ::Std::Option::Option::Some(b), ::Std::Option::Option::Some(c)]
           if a == b && b == c
             return Winner::Player.new(a)
           end
 
       else
-        []
+        ::Std::Tuple::Tuple.new(fields: [])
       end
       (rows).each do |row|
         (row).each do |column|
           case column
           in ::Std::Option::Option::Some(player)
-            []
+            ::Std::Tuple::Tuple.new(fields: [])
           in ::Std::Option::Option::None
             return Winner::NoneYet.new
           end
@@ -145,7 +145,7 @@ module TicTacToe
         return false
       end
       case rows[(cell - 1) / 3][(cell - 1) % 3]
-      in ::Std::Option::Option::Some(x)
+      in ::Std::Option::Option::Some
         false
       in ::Std::Option::Option::None
           rows[(cell - 1) / 3][(cell - 1) % 3] = ::Std::Option::Option::Some.new(player)
@@ -181,7 +181,7 @@ module TicTacToe
           break
 
       in Winner::NoneYet
-
+        ::Std::Tuple::Tuple.new(fields: [])
       end
       loop do
         ::Std::Io.print("It's #{game.player}'s turn. Enter the cell to play (1-9): ")
@@ -198,7 +198,7 @@ module TicTacToe
             end
 
         else
-          []
+          ::Std::Tuple::Tuple.new(fields: [])
         end
         ::Std::Io.print_line("")
         ::Std::Io.print_line("You entered an invalid cell number.")

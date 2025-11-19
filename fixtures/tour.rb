@@ -131,8 +131,8 @@ module Tour
       end
       ::Std::Io.print_line(fruit)
     end
-    alice = Person.new(name: ["Alice", "Henderson"], age: 42, gender: Gender::NonBinary.new("they/them"))
-    bob = Person.new(name: ["Bob", "Sanders"], age: 67, gender: Gender::Male.new)
+    alice = Person.new(name: ::Std::Tuple::Tuple.new(fields: ["Alice", "Henderson"]), age: 42, gender: Gender::NonBinary.new("they/them"))
+    bob = Person.new(name: ::Std::Tuple::Tuple.new(fields: ["Bob", "Sanders"]), age: 67, gender: Gender::Male.new)
     ::Std::Io.print_line("#{alice.name[0]} #{alice.name[1]} is a #{alice.age} year old #{alice.gender}.")
     ::Std::Io.print_line("#{bob.name[0]} #{bob.name[1]} is a #{bob.age} year old #{bob.gender}.")
   end

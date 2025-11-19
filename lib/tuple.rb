@@ -11,6 +11,10 @@ module Std
         fields
       end
 
+      def to_ary
+        fields
+      end
+
       def method_missing(index, *args)
         name = index.to_s[2..]
 
