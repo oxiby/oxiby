@@ -78,7 +78,7 @@ module Patterns
   end
 
   def self.message
-    message = [Message::Quit.new, Message::Move.new(x: 1, y: 2), Message::Write.new("hello"), Message::ChangeColor.new(4, 5, 6)].sample
+    message = [Message::Quit.allocate, Message::Move.allocate.tap { |__oxiby_new| __oxiby_new.send(:initialize, x: 1, y: 2) }, Message::Write.allocate.tap { |__oxiby_new| __oxiby_new.send(:initialize, "hello") }, Message::ChangeColor.allocate.tap { |__oxiby_new| __oxiby_new.send(:initialize, 4, 5, 6) }].sample
     output = case message
     in Message::Quit
       "I quit!"
@@ -125,7 +125,7 @@ module Patterns
   end
 
   def self.structs
-    dog = Dog.new(name: "Carl", breed: "Pug")
+    dog = Dog.allocate.tap { |__oxiby_new| __oxiby_new.send(:initialize, name: "Carl", breed: "Pug") }
     dog => Dog(name:, breed:)
     ::Std::Io.print_line("#{name} is a #{breed}.")
   end

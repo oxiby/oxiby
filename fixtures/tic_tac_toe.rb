@@ -91,7 +91,7 @@ module TicTacToe
         case ::Std::Tuple::Tuple.new(fields: [rows[row][0], rows[row][1], rows[row][2]])
         in [::Std::Option::Option::Some(a), ::Std::Option::Option::Some(b), ::Std::Option::Option::Some(c)]
             if a == b && b == c
-              return Winner::Player.new(a)
+              return Winner::Player.allocate.tap { |__oxiby_new| __oxiby_new.send(:initialize, a) }
             end
 
         else
@@ -102,7 +102,7 @@ module TicTacToe
         case ::Std::Tuple::Tuple.new(fields: [rows[0][column], rows[1][column], rows[2][column]])
         in [::Std::Option::Option::Some(a), ::Std::Option::Option::Some(b), ::Std::Option::Option::Some(c)]
             if a == b && b == c
-              return Winner::Player.new(a)
+              return Winner::Player.allocate.tap { |__oxiby_new| __oxiby_new.send(:initialize, a) }
             end
 
         else
@@ -112,7 +112,7 @@ module TicTacToe
       case ::Std::Tuple::Tuple.new(fields: [rows[0][0], rows[1][1], rows[2][2]])
       in [::Std::Option::Option::Some(a), ::Std::Option::Option::Some(b), ::Std::Option::Option::Some(c)]
           if a == b && b == c
-            return Winner::Player.new(a)
+            return Winner::Player.allocate.tap { |__oxiby_new| __oxiby_new.send(:initialize, a) }
           end
 
       else
@@ -121,7 +121,7 @@ module TicTacToe
       case ::Std::Tuple::Tuple.new(fields: [rows[0][2], rows[1][1], rows[2][0]])
       in [::Std::Option::Option::Some(a), ::Std::Option::Option::Some(b), ::Std::Option::Option::Some(c)]
           if a == b && b == c
-            return Winner::Player.new(a)
+            return Winner::Player.allocate.tap { |__oxiby_new| __oxiby_new.send(:initialize, a) }
           end
 
       else
@@ -133,11 +133,11 @@ module TicTacToe
           in ::Std::Option::Option::Some(player)
             ::Std::Tuple::Tuple.new(fields: [])
           in ::Std::Option::Option::None
-            return Winner::NoneYet.new
+            return Winner::NoneYet.allocate
           end
         end
       end
-      Winner::Draw.new
+      Winner::Draw.allocate
     end
 
     def choose(cell, player)
@@ -156,7 +156,7 @@ module TicTacToe
   end
 
   def self.main
-    game = Game.new(player: Player::X.new, rows: ::Std::List::List.times(3, ->  { ::Std::List::List.times(3, ->  { ::Std::Option::Option::None.new }) }))
+    game = Game.allocate.tap { |__oxiby_new| __oxiby_new.send(:initialize, player: Player::X.allocate, rows: ::Std::List::List.times(3, ->  { ::Std::List::List.times(3, ->  { ::Std::Option::Option::None.new }) })) }
     loop do
       ::Std::Io.print_line("Game board:")
       (game.rows).each do |row|
@@ -190,9 +190,9 @@ module TicTacToe
             if game.choose(cell, game.player)
               game.player = case game.player
               in Player::X
-                Player::O.new
+                Player::O.allocate
               in Player::O
-                Player::X.new
+                Player::X.allocate
               end
               break
             end
