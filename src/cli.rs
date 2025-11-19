@@ -128,6 +128,14 @@ pub fn run() -> Result<(), String> {
                     .clone(),
             })?;
         }
+        Some(("clean", sub_matches)) => {
+            run_clean(
+                sub_matches
+                    .get_one::<PathBuf>("output")
+                    .ok_or_else(|| "Couldn't determine output path.".to_string())?
+                    .clone(),
+            )?;
+        }
         _ => unreachable!("Clap ensures a subcommand is present"),
     }
 
@@ -144,6 +152,7 @@ fn app() -> Command {
         .arg_required_else_help(true)
         .subcommand(command_build())
         .subcommand(command_run())
+        .subcommand(command_clean())
 }
 
 fn command_build() -> Command {
@@ -178,6 +187,11 @@ fn command_run() -> Command {
         .arg(arg_output())
 }
 
+fn command_clean() -> Command {
+    Command::new("clean")
+        .about("Removes the output directory and its contents")
+        .arg(arg_output())
+}
 fn arg_no_std() -> Arg {
     Arg::new("no_std")
         .long("no-std")
@@ -236,6 +250,10 @@ fn run_run(build: &Build) -> Result<(), String> {
     child.wait().map_err(|error| error.to_string())?;
 
     Ok(())
+}
+
+fn run_clean(output: PathBuf) -> Result<(), String> {
+    std::fs::remove_dir_all(output).map_err(|error| error.to_string())
 }
 
 fn compile(source: &str, input_path: &Path, mode: Mode) -> Result<String, String> {
