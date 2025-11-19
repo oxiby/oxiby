@@ -45,18 +45,22 @@ impl WriteRuby for ExprStruct<'_> {
     fn write_ruby(&self, scope: &mut Scope) {
         let string = self.ty.to_string();
 
-        let path = match scope.resolve_ident(&string) {
-            Some((path, _kind)) => path,
-            None => string,
-        };
+        if string == "Self" {
+            scope.fragment("allocate");
+        } else {
+            let path = match scope.resolve_ident(&string) {
+                Some((path, _kind)) => path,
+                None => string,
+            };
 
-        scope.fragment(format!("{path}.new"));
+            scope.fragment(format!("{path}.allocate"));
+        }
 
         if self.fields.is_empty() {
             return;
         }
 
-        scope.fragment("(");
+        scope.fragment(".tap { |__oxiby_new| __oxiby_new.send(:initialize, ");
 
         for (index, (name, value)) in self.fields.iter().enumerate() {
             scope.fragment(format!("{name}: "));
@@ -67,6 +71,6 @@ impl WriteRuby for ExprStruct<'_> {
             }
         }
 
-        scope.fragment(")");
+        scope.fragment(") }");
     }
 }

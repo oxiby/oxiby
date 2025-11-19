@@ -57,12 +57,17 @@ impl<'a> ExprEnum<'a> {
 impl WriteRuby for ExprEnum<'_> {
     fn write_ruby(&self, scope: &mut Scope) {
         self.ty.write_ruby(scope);
-        scope.fragment(format!("::{}.new", self.variant));
+        scope.fragment(format!("::{}.allocate", self.variant));
+
+        if self.constructor == EnumConstructor::Unit {
+            return;
+        }
+
+        scope.fragment(".tap { |__oxiby_new| __oxiby_new.send(:initialize, ");
 
         match &self.constructor {
-            EnumConstructor::Unit => (),
+            EnumConstructor::Unit => unreachable!("checked for this case above"),
             EnumConstructor::Tuple(exprs) => {
-                scope.fragment("(");
                 for (index, expr) in exprs.iter().enumerate() {
                     expr.write_ruby(scope);
 
@@ -70,10 +75,8 @@ impl WriteRuby for ExprEnum<'_> {
                         scope.fragment(", ");
                     }
                 }
-                scope.fragment(")");
             }
             EnumConstructor::Struct(fields) => {
-                scope.fragment("(");
                 for (index, (name, value)) in fields.iter().enumerate() {
                     scope.fragment(format!("{name}: "));
                     value.write_ruby(scope);
@@ -82,9 +85,10 @@ impl WriteRuby for ExprEnum<'_> {
                         scope.fragment(", ");
                     }
                 }
-                scope.fragment(")");
             }
         }
+
+        scope.fragment(") }");
     }
 }
 

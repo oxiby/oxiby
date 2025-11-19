@@ -72,28 +72,37 @@ impl<'a> ItemFn<'a> {
                     .delimited_by(just(Token::LBrace), just(Token::RBrace))
                     .or_not(),
             )
-            .map_with(
-                move |(
-                    (
-                        (
-                            ((visibility, name), (self_param, positional_params, keyword_params)),
-                            return_ty,
-                        ),
+            .try_map(
+                move |(((((visibility, name), params), return_ty), constraints), body), span| {
+                    let (self_param, positional_params, keyword_params) = params;
+
+                    // TODO: These checks seem to cause a parsing error in the right conditions,
+                    // but the custom error messages don't appear in the output. Instead, the error
+                    // will say: found 'fn' expected named field, function, or '}' in struct
+                    if self_param && name.as_str() == "initialize" {
+                        return Err(Rich::custom(
+                            span,
+                            "`initialize` is a reserved name for instance methods",
+                        ));
+                    } else if !self_param && name.as_str() == "allocate" {
+                        return Err(Rich::custom(
+                            span,
+                            "`allocate` is a reserved name for static methods",
+                        ));
+                    }
+
+                    Ok(ItemFn {
+                        visibility,
+                        name,
+                        self_param,
+                        associated_fn,
+                        positional_params,
+                        keyword_params,
+                        return_ty,
                         constraints,
-                    ),
-                    body,
-                ),
-                      extra| ItemFn {
-                    visibility,
-                    name,
-                    self_param,
-                    associated_fn,
-                    positional_params,
-                    keyword_params,
-                    return_ty,
-                    constraints,
-                    body,
-                    span: extra.span(),
+                        body,
+                        span,
+                    })
                 },
             )
             .labelled("function")
