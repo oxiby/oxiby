@@ -2,11 +2,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
 use ariadne::{Color, Label, Report, ReportKind, sources};
-use chumsky::Parser;
 use clap::builder::{EnumValueParser, PathBufValueParser, PossibleValue};
 use clap::{Arg, ArgAction, Command, ValueEnum};
 
-use crate::import::OxibyModulePath;
+use crate::module::{Error, module_ast, module_program, module_tokens};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Mode {
@@ -46,13 +45,6 @@ impl Build {
         self.input_path.to_string_lossy().into_owned()
     }
 
-    fn input_path_file_name(&self) -> Result<PathBuf, String> {
-        self.input_path
-            .file_name()
-            .map(|name| Path::new(name).to_path_buf())
-            .ok_or_else(|| "Could not create path for input file name".to_string())
-    }
-
     fn create_build_dir(&self) -> Result<(), String> {
         if self.output_dir_path.exists() {
             if !self.output_dir_path.is_dir() {
@@ -70,8 +62,13 @@ impl Build {
         Ok(())
     }
 
-    fn output_file_path(&self) -> Result<PathBuf, String> {
-        if let Some(input_file_name) = self.input_path.file_name() {
+    fn output_file_path(&self, input_path: Option<&Path>) -> Result<PathBuf, String> {
+        let maybe_file_name = match input_path {
+            Some(input_path) => input_path.file_name(),
+            None => self.input_path.file_name(),
+        };
+
+        if let Some(input_file_name) = maybe_file_name {
             let mut output_file_path = PathBuf::new();
             output_file_path.set_file_name(input_file_name);
             output_file_path.set_extension("rb");
@@ -82,13 +79,10 @@ impl Build {
         }
     }
 
-    fn output_path(&self) -> Result<PathBuf, String> {
-        Ok(self.output_dir_path.join(&self.output_file_path()?))
-    }
-
-    fn source(&self) -> Result<String, String> {
-        std::fs::read_to_string(&self.input_path)
-            .map_err(|_| format!("Failed to read path: {}", self.input_path_string()))
+    fn output_path(&self, input_path: Option<&Path>) -> Result<PathBuf, String> {
+        Ok(self
+            .output_dir_path
+            .join(&self.output_file_path(input_path)?))
     }
 }
 
@@ -218,90 +212,59 @@ fn arg_output() -> Arg {
 fn run_build(build: &Build) -> Result<(), String> {
     build.create_build_dir()?;
 
-    let source = build.source()?;
+    let mut program_errors = None;
 
-    if build.mode == Mode::Program && !build.no_std {
-        crate::compile_std(&build.output_dir_path).map_err(|errs| errs.join(", "))?;
-    }
+    match build.mode {
+        Mode::Tokens | Mode::Ast => {
+            let result = if build.mode == Mode::Tokens {
+                module_tokens(&build.input_path)
+            } else {
+                module_ast(&build.input_path)
+            };
 
-    if let Ok(output) = compile(&source, &build.input_path_file_name()?, build.mode) {
-        if build.should_write_to_stdout() {
-            println!("{}", output.trim_end());
-        } else {
-            std::fs::write(
-                build.output_path()?,
-                output.strip_suffix('\n').unwrap_or(&output),
-            )
-            .map_err(|err| err.to_string())?;
+            match result {
+                Ok(output) => println!("{}", output.trim_end()),
+                Err(error) => match error {
+                    Error::Program(source, errors) => program_errors = Some((source, errors)),
+                    Error::Other(error) => return Err(error),
+                },
+            }
         }
-    }
-
-    Ok(())
-}
-
-fn run_run(build: &Build) -> Result<(), String> {
-    run_build(build)?;
-
-    let mut child = ProcessCommand::new("ruby")
-        .arg(build.output_path()?)
-        .spawn()
-        .map_err(|error| error.to_string())?;
-
-    child.wait().map_err(|error| error.to_string())?;
-
-    Ok(())
-}
-
-fn run_clean(output: PathBuf) -> Result<(), String> {
-    std::fs::remove_dir_all(output).map_err(|error| error.to_string())
-}
-
-fn compile(source: &str, input_path: &Path, mode: Mode) -> Result<String, String> {
-    let oxiby_module_path: OxibyModulePath = input_path.try_into()?;
-    let input_path_string = input_path.to_string_lossy().into_owned();
-
-    let (tokens, lex_errors) = crate::lexer().parse(source).into_output_errors();
-
-    let mut output = None;
-
-    let parse_errors = if let Some(tokens) = &tokens {
-        if mode == Mode::Tokens {
-            return Ok(format!("{tokens:#?}"));
-        }
-
-        let (maybe_ast, parse_errors) = crate::parser(crate::make_input)
-            .parse(crate::make_input((0..source.len()).into(), tokens))
-            .into_output_errors();
-
-        if let Some(ast) = maybe_ast {
-            if mode == Mode::Ast {
-                return Ok(format!("{ast:#?}"));
+        Mode::Program => {
+            if !build.no_std {
+                crate::compile_std(&build.output_dir_path).map_err(|errs| errs.join(", "))?;
             }
 
-            output = Some(crate::compile_module(oxiby_module_path, &ast, false));
+            let compiled_modules = Vec::new();
+
+            match module_program(&build.input_path, compiled_modules) {
+                Ok(compiled_modules) => {
+                    for (input_path, output) in compiled_modules {
+                        if build.should_write_to_stdout() {
+                            println!("{output}");
+                        } else {
+                            std::fs::write(
+                                build.output_path(Some(&input_path))?,
+                                output.strip_suffix('\n').unwrap_or(&output),
+                            )
+                            .map_err(|err| err.to_string())?;
+                        }
+                    }
+                }
+                Err(error) => match error {
+                    Error::Program(source, errors) => {
+                        program_errors = Some((source.clone(), errors.clone()));
+                    }
+                    Error::Other(error) => return Err(error),
+                },
+            }
         }
-
-        parse_errors
-    } else {
-        Vec::new()
-    };
-
-    if let Some(output) = output
-        && lex_errors.is_empty()
-        && parse_errors.is_empty()
-    {
-        return Ok(output);
     }
 
-    lex_errors
-        .into_iter()
-        .map(|error| error.map_token(|token| token.to_string()))
-        .chain(
-            parse_errors
-                .into_iter()
-                .map(|error| error.map_token(|token| token.to_string())),
-        )
-        .for_each(|error| {
+    if let Some((source, errors)) = program_errors {
+        let input_path_string = build.input_path_string();
+
+        for error in errors {
             Report::build(
                 ReportKind::Error,
                 (input_path_string.clone(), error.span().into_range()),
@@ -318,11 +281,29 @@ fn compile(source: &str, input_path: &Path, mode: Mode) -> Result<String, String
                     .with_color(Color::Yellow)
             }))
             .finish()
-            .eprint(sources([(input_path_string.clone(), source)]))
+            .eprint(sources([(input_path_string.clone(), source.clone())]))
             .unwrap();
-        });
+        }
+    }
 
-    Err("TODO: Under what cirumcstances does this appear".to_string())
+    Ok(())
+}
+
+fn run_run(build: &Build) -> Result<(), String> {
+    run_build(build)?;
+
+    let mut child = ProcessCommand::new("ruby")
+        .arg(build.output_path(None)?)
+        .spawn()
+        .map_err(|error| error.to_string())?;
+
+    child.wait().map_err(|error| error.to_string())?;
+
+    Ok(())
+}
+
+fn run_clean(output: PathBuf) -> Result<(), String> {
+    std::fs::remove_dir_all(output).map_err(|error| error.to_string())
 }
 
 #[cfg(test)]

@@ -10,6 +10,7 @@ mod compiler;
 mod expr;
 mod import;
 mod item;
+mod module;
 mod pattern;
 mod token;
 mod types;
