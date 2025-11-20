@@ -24,13 +24,16 @@ impl<'a> ExprRange<'a> {
         expr.clone()
             .or_not()
             .then_ignore(just(Token::Dot).then(just(Token::Dot)))
-            .then(just(Token::Lt).ignored().or_not())
+            .then(choice((
+                just(Token::Assign).to(true),
+                just(Token::Lt).to(false),
+            )))
             .then(expr.or_not())
             .delimited_by(just(Token::LParen), just(Token::RParen))
-            .map_with(|((start, maybe_exclusive), end), extra| Self {
+            .map_with(|((start, inclusive), end), extra| Self {
                 start: start.map(Box::new),
                 end: end.map(Box::new),
-                inclusive: maybe_exclusive.is_none(),
+                inclusive,
                 span: extra.span(),
             })
             .labelled("range")
