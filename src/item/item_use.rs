@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use chumsky::input::BorrowInput;
 use chumsky::prelude::*;
 
@@ -111,6 +113,30 @@ impl<'a> ItemUse<'a> {
                 (format!("::{ruby_module_constants}{separator}{real}"), kind),
             );
         }
+    }
+
+    pub fn is_self_module(&self) -> bool {
+        self.is_self
+    }
+
+    pub fn is_std_module(&self) -> bool {
+        self.is_std
+    }
+
+    // It's the caller's responsibility to make sure they're not calling this on imports from
+    // `self`.
+    //
+    // TODO: Use type state to make that impossible to mess up.
+    pub fn file_path(&self, file_parent: Option<&Path>) -> PathBuf {
+        let mut path_buf = file_parent.map_or_else(PathBuf::new, Path::to_path_buf);
+
+        for ident in &self.path {
+            path_buf.push(ident.as_str());
+        }
+
+        path_buf.set_extension("ob");
+
+        path_buf
     }
 }
 

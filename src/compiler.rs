@@ -305,7 +305,12 @@ where
 }
 
 #[must_use]
-pub fn compile_module(oxiby_module: OxibyModulePath, items: &[Item<'_>], is_std: bool) -> String {
+pub fn compile_module(
+    oxiby_module: OxibyModulePath,
+    items: &[Item<'_>],
+    is_std: bool,
+    is_entry: bool,
+) -> String {
     let mut scope = Scope::new(oxiby_module);
 
     scope.add_import("print_line", ("::Std::Io.print_line", ImportKind::Function));
@@ -322,7 +327,7 @@ pub fn compile_module(oxiby_module: OxibyModulePath, items: &[Item<'_>], is_std:
     scope.line("# frozen_string_literal: true");
     scope.newline();
 
-    if !is_std {
+    if !is_std && is_entry {
         scope.line("require_relative \"std/all\"");
         scope.newline();
     }
@@ -386,5 +391,5 @@ pub fn compile_str(
                 .collect::<Vec<String>>()
         })?;
 
-    Ok(compile_module(oxiby_module_path, &items, is_std))
+    Ok(compile_module(oxiby_module_path, &items, is_std, true))
 }

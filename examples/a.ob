@@ -1,0 +1,3 @@
+fn foo() -> String {
+    "Hello from foo in a!"
+}

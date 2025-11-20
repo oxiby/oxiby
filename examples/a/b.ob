@@ -1,0 +1,3 @@
+fn bar() -> String {
+    "Hello from bar in a.b!"
+}

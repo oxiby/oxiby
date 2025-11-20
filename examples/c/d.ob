@@ -1,0 +1,3 @@
+fn baz() -> String {
+    "Hello from baz in c.d!"
+}

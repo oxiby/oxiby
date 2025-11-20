@@ -1,0 +1,9 @@
+use a foo
+use a.b bar
+use c.d baz
+
+fn main() {
+    print_line(foo())
+    print_line(bar())
+    print_line(baz())
+}
