@@ -345,7 +345,9 @@ pub fn compile_module(
 pub fn compile_std(build_dir: &Path) -> Result<(), Vec<String>> {
     let oxiby_dir = build_dir.join("std");
 
-    if !oxiby_dir.exists() {
+    if oxiby_dir.exists() {
+        return Ok(())
+    } else {
         std::fs::create_dir(&oxiby_dir).map_err(|_| {
             vec!["Could not create directory to write Oxiby standard library.".to_string()]
         })?;
