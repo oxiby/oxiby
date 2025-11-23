@@ -12,7 +12,7 @@ pub struct ExprClosure<'a> {
     params: Vec<FnArg<'a>>,
     return_ty: Option<Type<'a>>,
     body: Vec<Expr<'a>>,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprClosure<'a> {

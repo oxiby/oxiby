@@ -12,7 +12,7 @@ use crate::token::Token;
 pub struct ExprLet<'a> {
     pattern: Pattern<'a>,
     body: Box<Expr<'a>>,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprLet<'a> {

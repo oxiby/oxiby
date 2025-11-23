@@ -9,7 +9,7 @@ use crate::token::Token;
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprHashMap<'a> {
     pairs: Vec<(Expr<'a>, Expr<'a>)>,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprHashMap<'a> {

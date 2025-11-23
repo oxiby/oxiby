@@ -254,9 +254,9 @@ impl WriteRuby for Type<'_> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConcreteType<'a> {
-    qual: Option<TypeIdent<'a>>,
-    ident: TypeIdent<'a>,
-    params: Option<Vec<Type<'a>>>,
+    pub(crate) qual: Option<TypeIdent<'a>>,
+    pub(crate) ident: TypeIdent<'a>,
+    pub(crate) params: Option<Vec<Type<'a>>>,
 }
 
 impl Display for ConcreteType<'_> {

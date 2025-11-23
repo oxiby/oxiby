@@ -7,7 +7,7 @@ use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprContinue {
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl ExprContinue {

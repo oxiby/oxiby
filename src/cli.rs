@@ -6,7 +6,26 @@ use ariadne::{Color, Label, Report, ReportKind, sources};
 use clap::builder::{EnumValueParser, PathBufValueParser, PossibleValue};
 use clap::{Arg, ArgAction, Command, ValueEnum};
 
-use crate::module::{Error, module_ast, module_program, module_tokens};
+use crate::module::{
+    Error as ModuleError,
+    module_ast,
+    module_check,
+    module_program,
+    module_tokens,
+};
+
+pub enum Error {
+    Message(String),
+    // This means that lexing, parsing, and/or type checking errors were already printed and we
+    // only need to exit non-zero.
+    Exit,
+}
+
+impl From<String> for Error {
+    fn from(value: String) -> Self {
+        Self::Message(value)
+    }
+}
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Mode {
@@ -83,24 +102,36 @@ impl Build {
     }
 }
 
-pub fn run() -> Result<(), String> {
+pub fn run() -> Result<(), Error> {
     let matches = app().get_matches();
 
     match matches.subcommand() {
+        Some(("check", sub_matches)) => {
+            run_check(&Build {
+                mode: Mode::Program,
+                stdout: true,
+                no_std: false,
+                entry_file: sub_matches
+                    .get_one::<PathBuf>("input")
+                    .ok_or_else(|| Error::Message("Couldn't determine input path.".to_string()))?
+                    .clone(),
+                output_dir: "TODO: Maybe a `Check` type for when `output_dir` isn't needed?".into(),
+            })?;
+        }
         Some(("build", sub_matches)) => {
             run_build(&Build {
                 mode: *sub_matches
                     .get_one::<Mode>("mode")
-                    .ok_or_else(|| "Couldn't determine mode.".to_string())?,
+                    .ok_or_else(|| Error::Message("Couldn't determine mode.".to_string()))?,
                 stdout: sub_matches.get_flag("stdout"),
                 no_std: sub_matches.get_flag("no_std"),
                 entry_file: sub_matches
                     .get_one::<PathBuf>("input")
-                    .ok_or_else(|| "Couldn't determine input path.".to_string())?
+                    .ok_or_else(|| Error::Message("Couldn't determine input path.".to_string()))?
                     .clone(),
                 output_dir: sub_matches
                     .get_one::<PathBuf>("output")
-                    .ok_or_else(|| "Couldn't determine output path.".to_string())?
+                    .ok_or_else(|| Error::Message("Couldn't determine output path.".to_string()))?
                     .clone(),
             })?;
         }
@@ -111,11 +142,11 @@ pub fn run() -> Result<(), String> {
                 no_std: sub_matches.get_flag("no_std"),
                 entry_file: sub_matches
                     .get_one::<PathBuf>("input")
-                    .ok_or_else(|| "Couldn't determine input path.".to_string())?
+                    .ok_or_else(|| Error::Message("Couldn't determine input path.".to_string()))?
                     .clone(),
                 output_dir: sub_matches
                     .get_one::<PathBuf>("output")
-                    .ok_or_else(|| "Couldn't determine output path.".to_string())?
+                    .ok_or_else(|| Error::Message("Couldn't determine output path.".to_string()))?
                     .clone(),
             })?;
         }
@@ -123,7 +154,7 @@ pub fn run() -> Result<(), String> {
             run_clean(
                 sub_matches
                     .get_one::<PathBuf>("output")
-                    .ok_or_else(|| "Couldn't determine output path.".to_string())?
+                    .ok_or_else(|| Error::Message("Couldn't determine output path.".to_string()))?
                     .clone(),
             )?;
         }
@@ -141,9 +172,16 @@ fn app() -> Command {
         .about("The Oxiby compiler")
         .subcommand_required(true)
         .arg_required_else_help(true)
+        .subcommand(command_check())
         .subcommand(command_build())
         .subcommand(command_run())
         .subcommand(command_clean())
+}
+
+fn command_check() -> Command {
+    Command::new("check")
+        .about("Type checks an Oxiby program")
+        .arg(arg_input())
 }
 
 fn command_build() -> Command {
@@ -206,7 +244,47 @@ fn arg_output() -> Arg {
         .default_value("build")
 }
 
-fn run_build(build: &Build) -> Result<(), String> {
+fn run_check(build: &Build) -> Result<(), Error> {
+    let mut program_errors = None;
+
+    if let Err(error) = module_check(&build.entry_file) {
+        match error {
+            ModuleError::Program(source, errors) => program_errors = Some((source, errors)),
+            ModuleError::Message(error) => return Err(Error::Message(error)),
+        }
+    }
+
+    if let Some((source, errors)) = program_errors {
+        let entry_file_string = build.entry_file_string();
+
+        for error in errors {
+            Report::build(
+                ReportKind::Error,
+                (entry_file_string.clone(), error.span().into_range()),
+            )
+            .with_message(error.to_string())
+            .with_label(
+                Label::new((entry_file_string.clone(), error.span().into_range()))
+                    .with_message(error.reason().to_string())
+                    .with_color(Color::Red),
+            )
+            .with_labels(error.contexts().map(|(label, span)| {
+                Label::new((entry_file_string.clone(), span.into_range()))
+                    .with_message(format!("while parsing this {label}"))
+                    .with_color(Color::Yellow)
+            }))
+            .finish()
+            .eprint(sources([(entry_file_string.clone(), source.clone())]))
+            .unwrap();
+        }
+
+        return Err(Error::Exit);
+    }
+
+    Ok(())
+}
+
+fn run_build(build: &Build) -> Result<(), Error> {
     build.create_build_dir()?;
 
     let mut program_errors = None;
@@ -222,8 +300,10 @@ fn run_build(build: &Build) -> Result<(), String> {
             match result {
                 Ok(output) => println!("{}", output.trim_end()),
                 Err(error) => match error {
-                    Error::Program(source, errors) => program_errors = Some((source, errors)),
-                    Error::Other(error) => return Err(error),
+                    crate::module::Error::Program(source, errors) => {
+                        program_errors = Some((source, errors));
+                    }
+                    crate::module::Error::Message(error) => return Err(Error::Message(error)),
                 },
             }
         }
@@ -267,10 +347,10 @@ fn run_build(build: &Build) -> Result<(), String> {
                     }
                 }
                 Err(error) => match error {
-                    Error::Program(source, errors) => {
+                    ModuleError::Program(source, errors) => {
                         program_errors = Some((source.clone(), errors.clone()));
                     }
-                    Error::Other(error) => return Err(error),
+                    ModuleError::Message(error) => return Err(Error::Message(error)),
                 },
             }
         }
@@ -304,7 +384,7 @@ fn run_build(build: &Build) -> Result<(), String> {
     Ok(())
 }
 
-fn run_run(build: &Build) -> Result<(), String> {
+fn run_run(build: &Build) -> Result<(), Error> {
     run_build(build)?;
 
     let mut child = ProcessCommand::new("ruby")

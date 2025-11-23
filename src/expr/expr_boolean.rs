@@ -7,8 +7,8 @@ use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprBoolean {
-    value: bool,
-    span: SimpleSpan,
+    pub(crate) value: bool,
+    pub(crate) span: SimpleSpan,
 }
 
 impl ExprBoolean {

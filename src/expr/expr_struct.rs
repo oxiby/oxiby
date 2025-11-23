@@ -11,7 +11,7 @@ use crate::types::Type;
 pub struct ExprStruct<'a> {
     ty: Type<'a>,
     fields: Vec<(ExprIdent<'a>, Expr<'a>)>,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprStruct<'a> {

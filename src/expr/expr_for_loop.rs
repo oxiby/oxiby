@@ -14,7 +14,7 @@ pub struct ExprForLoop<'a> {
     pattern: Pattern<'a>,
     items: Box<Expr<'a>>,
     block: ExprBlock<'a>,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprForLoop<'a> {

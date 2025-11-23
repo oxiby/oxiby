@@ -11,7 +11,7 @@ pub struct ExprRange<'a> {
     start: Option<Box<Expr<'a>>>,
     end: Option<Box<Expr<'a>>>,
     inclusive: bool,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprRange<'a> {

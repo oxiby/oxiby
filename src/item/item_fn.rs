@@ -10,16 +10,16 @@ use crate::types::{Constraint, Type};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ItemFn<'a> {
-    visibility: Visibility,
-    name: ExprIdent<'a>,
-    self_param: bool,
-    associated_fn: bool,
-    positional_params: Vec<FnParam<'a>>,
-    keyword_params: Vec<FnParam<'a>>,
-    return_ty: Option<Type<'a>>,
-    constraints: Option<Vec<Constraint<'a>>>,
-    body: Option<Vec<Expr<'a>>>,
-    span: SimpleSpan,
+    pub(crate) visibility: Visibility,
+    pub(crate) name: ExprIdent<'a>,
+    pub(crate) self_param: bool,
+    pub(crate) associated_fn: bool,
+    pub(crate) positional_params: Vec<FnParam<'a>>,
+    pub(crate) keyword_params: Vec<FnParam<'a>>,
+    pub(crate) return_ty: Option<Type<'a>>,
+    pub(crate) constraints: Option<Vec<Constraint<'a>>>,
+    pub(crate) body: Option<Vec<Expr<'a>>>,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ItemFn<'a> {
@@ -189,8 +189,8 @@ impl WriteRuby for ItemFn<'_> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FnParam<'a> {
-    ident: ExprIdent<'a>,
-    ty: Type<'a>,
+    pub(crate) ident: ExprIdent<'a>,
+    pub(crate) ty: Type<'a>,
 }
 
 impl<'a> FnParam<'a> {

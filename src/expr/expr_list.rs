@@ -9,7 +9,7 @@ use crate::token::Token;
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprList<'a> {
     exprs: Vec<Expr<'a>>,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprList<'a> {

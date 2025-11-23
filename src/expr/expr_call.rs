@@ -9,12 +9,12 @@ use crate::types::TypeIdent;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprCall<'a> {
-    name: CallIdent<'a>,
-    self_arg: bool,
-    positional_args: Vec<Expr<'a>>,
-    keyword_args: Vec<(ExprIdent<'a>, Expr<'a>)>,
-    is_field: bool,
-    span: SimpleSpan,
+    pub(crate) name: CallIdent<'a>,
+    pub(crate) self_arg: bool,
+    pub(crate) positional_args: Vec<Expr<'a>>,
+    pub(crate) keyword_args: Vec<(ExprIdent<'a>, Expr<'a>)>,
+    pub(crate) is_field: bool,
+    pub(crate) span: SimpleSpan,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -165,7 +165,7 @@ pub enum CallIdent<'a> {
 }
 
 impl CallIdent<'_> {
-    fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         match self {
             Self::Expr(ident) => ident.as_str(),
             Self::Type(ident) => ident.as_str(),

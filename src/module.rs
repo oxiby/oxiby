@@ -4,12 +4,13 @@ use std::path::{Path, PathBuf};
 use chumsky::Parser;
 use chumsky::error::Rich;
 
+use crate::check::Checker;
 use crate::import::OxibyModulePath;
 use crate::item::Item;
 
 pub enum Error {
     Program(String, Vec<Rich<'static, String>>),
-    Other(String),
+    Message(String),
 }
 
 pub fn module_tokens(file_path: &Path) -> Result<String, Error> {
@@ -76,7 +77,7 @@ pub fn module_program(
                 .expect("parent was extracted from the entry file so it should match")
         })
         .try_into()
-        .map_err(Error::Other)?;
+        .map_err(Error::Message)?;
 
     let source = read_file(input_file)?;
 
@@ -131,7 +132,46 @@ pub fn module_program(
     ))
 }
 
+pub fn module_check(input_file: &Path) -> Result<(), Error> {
+    let source = read_file(input_file)?;
+
+    let (tokens, lex_errors) = crate::lexer().parse(&source).into_output_errors();
+
+    let parse_errors = if let Some(tokens) = &tokens {
+        let (items, parse_errors) = crate::parser(crate::make_input)
+            .parse(crate::make_input((0..source.len()).into(), tokens))
+            .into_output_errors();
+
+        if let Some(items) = items {
+            let mut checker = Checker::new();
+
+            let result = checker.infer(items);
+
+            dbg!(&checker);
+
+            result.map_err(|error| Error::Program(source.clone(), vec![error]))?;
+        }
+
+        parse_errors
+    } else {
+        Vec::new()
+    };
+
+    Err(Error::Program(
+        source.clone(),
+        lex_errors
+            .into_iter()
+            .map(|error| error.map_token(|token| token.to_string()).into_owned())
+            .chain(
+                parse_errors
+                    .into_iter()
+                    .map(|error| error.map_token(|token| token.to_string()).into_owned()),
+            )
+            .collect(),
+    ))
+}
+
 fn read_file(file_path: &Path) -> Result<String, Error> {
     std::fs::read_to_string(file_path)
-        .map_err(|_| Error::Other(format!("Failed to read path: {}", file_path.display())))
+        .map_err(|_| Error::Message(format!("Failed to read path: {}", file_path.display())))
 }

@@ -8,7 +8,7 @@ use crate::token::Token;
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprRuby<'a> {
     ruby: &'a str,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprRuby<'a> {

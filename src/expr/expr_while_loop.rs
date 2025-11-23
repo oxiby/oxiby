@@ -10,7 +10,7 @@ use crate::token::Token;
 pub struct ExprWhileLoop<'a> {
     condition: Box<Expr<'a>>,
     block: ExprBlock<'a>,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprWhileLoop<'a> {

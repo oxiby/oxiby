@@ -9,7 +9,7 @@ use crate::token::Token;
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprReturn<'a> {
     expr: Option<Box<Expr<'a>>>,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprReturn<'a> {

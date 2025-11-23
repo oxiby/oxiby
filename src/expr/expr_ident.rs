@@ -10,8 +10,8 @@ use crate::types::TypeIdent;
 
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub struct ExprIdent<'a> {
-    ident: &'a str,
-    span: SimpleSpan,
+    pub(crate) ident: &'a str,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprIdent<'a> {
@@ -50,7 +50,7 @@ impl WriteRuby for ExprIdent<'_> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprTypeIdent<'a> {
     ident: TypeIdent<'a>,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprTypeIdent<'a> {

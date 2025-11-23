@@ -12,7 +12,7 @@ pub struct ExprConditional<'a> {
     condition: Box<Expr<'a>>,
     then_branch: ExprBlock<'a>,
     else_branch: Option<ConditionalElseBranch<'a>>,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprConditional<'a> {

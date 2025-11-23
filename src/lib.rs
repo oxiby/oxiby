@@ -5,6 +5,7 @@
 use chumsky::span::SimpleSpan;
 
 mod ast;
+mod check;
 mod cli;
 mod compiler;
 mod expr;
@@ -16,7 +17,7 @@ mod token;
 mod types;
 
 pub use ast::{make_input, parser};
-pub use cli::run;
+pub use cli::{Error as CliError, run};
 pub use compiler::{compile_module, compile_std, compile_str};
 pub use token::{Token, lexer};
 

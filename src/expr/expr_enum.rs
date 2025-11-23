@@ -12,7 +12,7 @@ pub struct ExprEnum<'a> {
     ty: TypeIdent<'a>,
     variant: TypeIdent<'a>,
     constructor: EnumConstructor<'a>,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprEnum<'a> {

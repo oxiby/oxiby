@@ -12,7 +12,7 @@ use crate::token::Token;
 pub struct ExprMatch<'a> {
     expr: Box<Expr<'a>>,
     arms: Vec<MatchArm<'a>>,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprMatch<'a> {

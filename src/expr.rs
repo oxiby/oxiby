@@ -451,6 +451,41 @@ impl<'a> Expr<'a> {
         .as_context()
         .boxed()
     }
+
+    pub fn span(&self) -> SimpleSpan {
+        match self {
+            Self::Boolean(expr_boolean) => expr_boolean.span,
+            Self::Integer(expr_integer) => expr_integer.span,
+            Self::Float(expr_float) => expr_float.span,
+            Self::String(expr_string) => expr_string.span,
+            Self::Range(expr_range) => expr_range.span,
+            Self::HashMap(expr_hash_map) => expr_hash_map.span,
+            Self::List(expr_list) => expr_list.span,
+            Self::Tuple(expr_tuple) => expr_tuple.span,
+            Self::Struct(expr_struct) => expr_struct.span,
+            Self::Enum(expr_enum) => expr_enum.span,
+            Self::ExprIdent(expr_ident) => expr_ident.span,
+            Self::TypeIdent(expr_type_ident) => expr_type_ident.span,
+            Self::Field(expr_field) => expr_field.span,
+            Self::Index(expr_index) => expr_index.span,
+            Self::Call(expr_call) => expr_call.span,
+            Self::Closure(expr_closure) => expr_closure.span,
+            Self::Break(expr_break) => expr_break.span,
+            Self::Conditional(expr_conditional) => expr_conditional.span,
+            Self::Continue(expr_continue) => expr_continue.span,
+            Self::ForLoop(expr_for_loop) => expr_for_loop.span,
+            Self::Loop(expr_loop) => expr_loop.span,
+            Self::Return(expr_return) => expr_return.span,
+            Self::WhileLoop(expr_while_loop) => expr_while_loop.span,
+            Self::Let(expr_let) => expr_let.span,
+            Self::Match(expr_match) => expr_match.span,
+            Self::Block(expr_block) => expr_block.span,
+            Self::Unary(expr_unary) => expr_unary.span,
+            Self::Binary(expr_binary) => expr_binary.span,
+            Self::Parenthesized(expr_parenthesized) => expr_parenthesized.span,
+            Self::Ruby(expr_ruby) => expr_ruby.span,
+        }
+    }
 }
 
 impl WriteRuby for Expr<'_> {

@@ -7,8 +7,8 @@ use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprFloat {
-    value: f64,
-    span: SimpleSpan,
+    pub(crate) value: f64,
+    pub(crate) span: SimpleSpan,
 }
 
 impl ExprFloat {

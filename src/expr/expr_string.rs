@@ -9,8 +9,8 @@ use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprString<'a> {
-    parts: Vec<ExprStringPart<'a>>,
-    span: SimpleSpan,
+    pub(crate) parts: Vec<ExprStringPart<'a>>,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ExprString<'a> {
