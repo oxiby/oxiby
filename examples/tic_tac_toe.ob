@@ -68,7 +68,7 @@ struct Game {
         Winner.Draw
     }
 
-    fn choose(self, cell: Integer, player: Player) -> Boolean {
+    fn choose(self, :cell: Integer, :player: Player) -> Boolean {
         if !(1..=9).contains(cell) {
             return false
         }
@@ -122,7 +122,7 @@ fn main() {
 
             match read_line().map(fn (s) { s.to_i() }) {
                 Ok(cell) -> {
-                    if game.choose(cell, game.player) {
+                    if game.choose(cell: cell, player: game.player) {
                         game.player = match game.player {
                             Player.X -> Player.O,
                             Player.O -> Player.X,
