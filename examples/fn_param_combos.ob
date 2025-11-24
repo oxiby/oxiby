@@ -1,0 +1,17 @@
+fn no_params() {}
+fn one_pos(a: String) {}
+fn two_pos(a: String, b: String) {}
+fn one_kw(:a: String) {}
+fn two_kw(:a: String, :b: String) {}
+fn one_each(a: String, :b: String) {}
+fn two_each(a: String, b: String, :c: String, :d: String) {}
+
+fn main() {
+    no_params()
+    one_pos("a")
+    two_pos("a", "b")
+    one_kw(a: "a")
+    two_kw(a: "a", b: "b")
+    one_each("a", b: "b")
+    two_each("a", "b", c: "c", d: "d")
+}

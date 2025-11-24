@@ -11,23 +11,16 @@ use crate::types::TypeIdent;
 pub struct ExprCall<'a> {
     name: CallIdent<'a>,
     self_arg: bool,
-    positional_args: Vec<FnPosArg<'a>>,
-    keyword_args: Vec<FnKwArg<'a>>,
+    positional_args: Vec<Expr<'a>>,
+    keyword_args: Vec<(ExprIdent<'a>, Expr<'a>)>,
     is_field: bool,
     span: SimpleSpan,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct FnPosArg<'a>(Expr<'a>);
-
-#[derive(Debug, Clone, PartialEq)]
-struct FnKwArg<'a>(ExprIdent<'a>, Expr<'a>);
-
-#[derive(Debug, Clone, PartialEq)]
-enum FnArgs<'a> {
-    Pos(Vec<FnPosArg<'a>>),
-    Kw(Vec<FnKwArg<'a>>),
-    Both(Vec<FnPosArg<'a>>, Vec<FnKwArg<'a>>),
+enum FnArg<'a> {
+    Pos(Expr<'a>),
+    Kw(ExprIdent<'a>, Expr<'a>),
 }
 
 impl<'a> ExprCall<'a> {
@@ -37,51 +30,61 @@ impl<'a> ExprCall<'a> {
     where
         I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
     {
-        let positional_args = expr
-            .clone()
-            .map(FnPosArg)
-            .separated_by(just(Token::Comma))
-            .collect::<Vec<_>>()
-            .boxed();
+        let positional_arg = expr.clone().map(FnArg::Pos);
 
-        let keyword_args = ExprIdent::parser()
+        let keyword_arg = ExprIdent::parser()
             .then_ignore(just(Token::Colon))
             .then(expr)
-            .map(|(ident, expr)| FnKwArg(ident, expr))
-            .separated_by(just(Token::Comma))
-            .collect::<Vec<_>>()
-            .boxed();
+            .map(|(ident, expr)| FnArg::Kw(ident, expr));
 
         choice((
             ExprIdent::parser().map(CallIdent::Expr),
             TypeIdent::parser().map(CallIdent::Type),
         ))
-        .then_ignore(just(Token::LParen))
-        .then(just(Token::SelfTerm).or_not())
-        .then(choice((
-            positional_args.clone().map(FnArgs::Pos),
-            keyword_args.clone().map(FnArgs::Kw),
-            positional_args
+        .then(
+            just(Token::SelfTerm)
                 .then_ignore(just(Token::Comma))
-                .then(keyword_args)
-                .map(|(pos, kw)| FnArgs::Both(pos, kw)),
-        )))
-        .then_ignore(just(Token::RParen))
-        .map_with(|((name, maybe_self_arg), fn_args), extra| {
-            let (positional_args, keyword_args): (Vec<FnPosArg>, Vec<FnKwArg>) = match fn_args {
-                FnArgs::Pos(positional_args) => (positional_args, Vec::with_capacity(0)),
-                FnArgs::Kw(keyword_args) => (Vec::with_capacity(0), keyword_args),
-                FnArgs::Both(positional_args, keyword_args) => (positional_args, keyword_args),
-            };
+                .or_not()
+                .then(
+                    choice((keyword_arg, positional_arg))
+                        .separated_by(just(Token::Comma))
+                        .collect::<Vec<_>>(),
+                )
+                .delimited_by(just(Token::LParen), just(Token::RParen)),
+        )
+        .try_map(|(name, (maybe_self_arg, fn_args)), span| {
+            let mut positional_args = Vec::new();
+            let mut keyword_args = Vec::new();
+            let mut keyword_arg_seen = false;
 
-            Self {
+            for fn_arg in fn_args {
+                match fn_arg {
+                    FnArg::Pos(expr) => {
+                        if keyword_arg_seen {
+                            return Err(Rich::custom(
+                                span,
+                                "Positional function arguments cannot follow keyword arguments",
+                            ));
+                        }
+
+                        positional_args.push(expr);
+                    }
+                    FnArg::Kw(ident, expr) => {
+                        keyword_arg_seen = true;
+
+                        keyword_args.push((ident, expr));
+                    }
+                }
+            }
+
+            Ok(Self {
                 name,
                 self_arg: maybe_self_arg.is_some(),
                 positional_args,
                 keyword_args,
                 is_field: false,
-                span: extra.span(),
-            }
+                span,
+            })
         })
         .labelled("call")
         .as_context()
@@ -130,7 +133,7 @@ impl WriteRuby for ExprCall<'_> {
         scope.fragment("(");
 
         for (index, arg) in self.positional_args.iter().enumerate() {
-            arg.0.write_ruby(scope);
+            arg.write_ruby(scope);
 
             if index < self.positional_args.len() - 1 {
                 scope.fragment(", ");
