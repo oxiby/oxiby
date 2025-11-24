@@ -346,12 +346,12 @@ pub fn compile_std(build_dir: &Path) -> Result<(), Vec<String>> {
     let oxiby_dir = build_dir.join("std");
 
     if oxiby_dir.exists() {
-        return Ok(())
-    } else {
-        std::fs::create_dir(&oxiby_dir).map_err(|_| {
-            vec!["Could not create directory to write Oxiby standard library.".to_string()]
-        })?;
+        return Ok(());
     }
+
+    std::fs::create_dir(&oxiby_dir).map_err(|_| {
+        vec!["Could not create directory to write Oxiby standard library.".to_string()]
+    })?;
 
     for [name, source] in STD_RB {
         std::fs::write(oxiby_dir.join(name), source).map_err(|error| vec![error.to_string()])?;
