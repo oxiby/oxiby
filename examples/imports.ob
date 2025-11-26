@@ -10,17 +10,17 @@ use l.m E.U2
 use n.o E.S -> St2
 
 fn examples() {
-  f()
-  S.f()
-  E.V
-  U
-  St {
-    f: 1,
-  }
+    f()
+    S.f()
+    E.V
+    U
+    St {
+        f: 1,
+    }
 
-  f2()
-  S2.f()
-  E2.V
-  U2
-  St2(1)
+    f2()
+    S2.f()
+    E2.V
+    U2
+    St2(1)
 }

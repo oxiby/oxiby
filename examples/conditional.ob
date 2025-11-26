@@ -1,64 +1,64 @@
 fn thing() -> Boolean {
-  false
+    false
 }
 
 
 fn another_thing() -> Boolean {
-  true
+    true
 }
 
 fn main() {
-  let something = true
+    let something = true
 
-  if 3 * 3 == 9 {
-    true
-  }
-
-  if something {
-    "a"
-  } else {
-    "b"
-  }
-
-  if thing() {
-    "a"
-  } else if another_thing() {
-    "b"
-  }
-
-  if thing() {
-    "a"
-  } else if another_thing() {
-    "b"
-  } else {
-    "c"
-  }
-
-  let outer = true
-
-  if outer {
     if 3 * 3 == 9 {
-      true
+        true
     }
 
     if something {
-      "a"
+        "a"
     } else {
-      "b"
+        "b"
     }
 
     if thing() {
-      "a"
+        "a"
     } else if another_thing() {
-      "b"
+        "b"
     }
 
     if thing() {
-      "a"
+        "a"
     } else if another_thing() {
-      "b"
+        "b"
     } else {
-      "c"
+        "c"
     }
-  }
+
+    let outer = true
+
+    if outer {
+        if 3 * 3 == 9 {
+            true
+        }
+
+        if something {
+            "a"
+        } else {
+            "b"
+        }
+
+        if thing() {
+            "a"
+        } else if another_thing() {
+            "b"
+        }
+
+        if thing() {
+            "a"
+        } else if another_thing() {
+            "b"
+        } else {
+            "c"
+        }
+    }
 }

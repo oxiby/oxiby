@@ -1,7 +1,7 @@
 fn id(s: String) -> String {
-  s
+    s
 }
 
 fn main() {
-  id("yo")
+    id("yo")
 }

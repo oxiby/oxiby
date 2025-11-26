@@ -7,137 +7,137 @@ use call id
 
 // A public function with no parameters that returns an integer
 pub fn predictable() -> Integer {
-  123
+    123
 }
 
 // A private function with two integer parameters that returns an integer
 fn add(a: Integer, b: Integer) -> Integer {
-  a + b
+    a + b
 }
 
 // A public function with one parameter of any type that returns the same type
 pub fn identity(a: a) -> a {
-  a
+    a
 }
 
 // A private function with one string parameter that returns unit (an empty tuple)
 fn greet(name: String) {
-  // Conditional logic
-  if name == "Oxiby" {
-    print_line("Hello to myself!")
-    // Early return
-    return
-  }
+    // Conditional logic
+    if name == "Oxiby" {
+        print_line("Hello to myself!")
+        // Early return
+        return
+    }
 
-  print_line("Hello, #{name}")
+    print_line("Hello, #{name}")
 }
 
 // A public struct with three public fields. The "name" field is a tuple: a heterogenous list of
 // types with a known size and order.
 pub struct Person {
-  pub name: (String, String),
+    pub name: (String, String),
 
-  pub age: Integer,
+    pub age: Integer,
 
-  pub gender: Gender,
+    pub gender: Gender,
 }
 
 // A public enumeration with three constructors. Two constructors take no arguments, and one takes
 // a string.
 pub enum Gender {
-  Male,
-  Female,
-  NonBinary(String),
+    Male,
+    Female,
+    NonBinary(String),
 }
 
 // If a function named main exists in a module, it is immediately executed.
 fn main() {
-  // A variable is declared with "let"
-  let x = 5
-  // It can be redeclared (optionally in terms of itself) to shadow the previous variable
-  let x = 3 + x
-  let x = x * -1
-  let x = (x)
-  let x = (x + 7) * 4
-  let x = ((x + 17) * 4) - 2
+    // A variable is declared with "let"
+    let x = 5
+    // It can be redeclared (optionally in terms of itself) to shadow the previous variable
+    let x = 3 + x
+    let x = x * -1
+    let x = (x)
+    let x = (x + 7) * 4
+    let x = ((x + 17) * 4) - 2
 
-  // print_lines the given value
-  print_line(x)
+    // print_lines the given value
+    print_line(x)
 
-  // Variables can have type annotations
-  let s: String = "I'm a string!"
+    // Variables can have type annotations
+    let s: String = "I'm a string!"
 
-  print_line(s)
+    print_line(s)
 
-  print_line(predictable())
-  print_line(identity(456))
-  print_line(add(5, 10))
+    print_line(predictable())
+    print_line(identity(456))
+    print_line(add(5, 10))
 
-  greet("Oxiby")
+    greet("Oxiby")
 
-  // Conditionals take an expression that evaluates to a boolean value, and execute the given block
-  if true {
-    print_line("If without an else.")
-  }
-
-  // An "else" clause is executed if the conditional expression is false.
-  if add(1, 2) == 3 {
-    print_line("One and two is three!")
-  } else {
-    print_line("Something is seriously wrong.")
-  }
-
-  let sum = add(1, 2)
-
-  // Many conditions can be chained with "else if"
-  if sum == 5 {
-    print_line("I'm off by two!")
-  } else if sum == 4 {
-    print_line("I'm off by one!")
-  } else {
-    print_line("I need to go back to school.")
-  }
-
-  if "foo" == "bar" {
-    print_line("nope")
-  } else if "foo" == "baz" {
-    print_line("also nope")
-  }
-
-  // Lists are homogenous sequences of values
-  let fruits = ["apple", "banana", "carrot", "dragonfruit"]
-
-  // A "for in" loop executes the given block for each element in the list, with the next value in
-  // the list bound to the given variable on each iteration
-  for fruit in fruits {
-    if  fruit == "apple" {
-      // Skips to the next iteration
-      continue
-    } else if fruit == "carrot" {
-      // Stops iterating entirely
-      break
+    // Conditionals take an expression that evaluates to a boolean value, and execute the given block
+    if true {
+        print_line("If without an else.")
     }
 
-    print_line(fruit)
-  }
+    // An "else" clause is executed if the conditional expression is false.
+    if add(1, 2) == 3 {
+        print_line("One and two is three!")
+    } else {
+        print_line("Something is seriously wrong.")
+    }
 
-  // A struct is constructed by giving its name followed by values for its fields
-  let alice = Person {
-    name: ("Alice", "Henderson"),
-    age: 42,
-    // An enum is constructe by giving its name and variant separated by a dot, followed by any
-    // arguments that variant's constructor takes
-    gender: Gender.NonBinary("they/them"),
-  }
+    let sum = add(1, 2)
 
-  let bob = Person {
-    name: ("Bob", "Sanders"),
-    age: 67,
-    gender: Gender.Male,
-  }
+    // Many conditions can be chained with "else if"
+    if sum == 5 {
+        print_line("I'm off by two!")
+    } else if sum == 4 {
+        print_line("I'm off by one!")
+    } else {
+        print_line("I need to go back to school.")
+    }
 
-  // Expressions are interpolated within strings by enclosing them within curly braces preceded by
-  // a pound sign
-  print_line("#{alice.name[0]} #{alice.name[1]} is a #{alice.age} year old #{alice.gender}.")
-  print_line("#{bob.name[0]} #{bob.name[1]} is a #{bob.age} year old #{bob.gender}.")
+    if "foo" == "bar" {
+        print_line("nope")
+    } else if "foo" == "baz" {
+        print_line("also nope")
+    }
+
+    // Lists are homogenous sequences of values
+    let fruits = ["apple", "banana", "carrot", "dragonfruit"]
+
+    // A "for in" loop executes the given block for each element in the list, with the next value in
+    // the list bound to the given variable on each iteration
+    for fruit in fruits {
+        if    fruit == "apple" {
+            // Skips to the next iteration
+            continue
+        } else if fruit == "carrot" {
+            // Stops iterating entirely
+            break
+        }
+
+        print_line(fruit)
+    }
+
+    // A struct is constructed by giving its name followed by values for its fields
+    let alice = Person {
+        name: ("Alice", "Henderson"),
+        age: 42,
+        // An enum is constructe by giving its name and variant separated by a dot, followed by any
+        // arguments that variant's constructor takes
+        gender: Gender.NonBinary("they/them"),
+    }
+
+    let bob = Person {
+        name: ("Bob", "Sanders"),
+        age: 67,
+        gender: Gender.Male,
+    }
+
+    // Expressions are interpolated within strings by enclosing them within curly braces preceded by
+    // a pound sign
+    print_line("#{alice.name[0]} #{alice.name[1]} is a #{alice.age} year old #{alice.gender}.")
+    print_line("#{bob.name[0]} #{bob.name[1]} is a #{bob.age} year old #{bob.gender}.")
 }

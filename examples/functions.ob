@@ -1,43 +1,43 @@
 pub fn null() {}
 
 pub fn greet(name: String) -> String {
-  if name == "Oxiby" {
-    return "Hello to myself!"
-  }
+    if name == "Oxiby" {
+        return "Hello to myself!"
+    }
 
-  "Hello, #{name}!"
+    "Hello, #{name}!"
 }
 
 fn identity(t: t) -> t {
-  t
+    t
 }
 
 trait AssocReq {
-  type Out: Requirement
+    type Out: Requirement
 }
 
 trait GenericTrait<t> {
 }
 
 trait Add<rhs> where rhs = Self {
-  type Output
+    type Output
 
-  fn add(self, other: rhs) -> Self.Output
+    fn add(self, other: rhs) -> Self.Output
 }
 
 impl Add<Integer> for Integer {
-  fn add(self, other: rhs) -> Self {
-    self + other
-  }
+    fn add(self, other: rhs) -> Self {
+        self + other
+    }
 }
 
 fn add(a: a, b: a) -> a where a: Add {
-  a + b
+    a + b
 }
 
 fn main() {
-  null()
-  greet("Oxiby")
-  identity(true)
-  add(1, 2)
+    null()
+    greet("Oxiby")
+    identity(true)
+    add(1, 2)
 }

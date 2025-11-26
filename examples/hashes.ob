@@ -1,17 +1,17 @@
 fn main() {
-  // A hash map is an unordered collection of key/value pairs.
-  let dogs = [
-    "Carl": "Pug",
-    "Koda": "Terrier",
-  ]
+    // A hash map is an unordered collection of key/value pairs.
+    let dogs = [
+        "Carl": "Pug",
+        "Koda": "Terrier",
+    ]
 
-  // Using a for/in loop, a tuple of key and value will be bound to `pair` on each iteration.
-  for pair in dogs {
-    print_line("#{pair[0]} is a #{pair[1]}.")
-  }
+    // Using a for/in loop, a tuple of key and value will be bound to `pair` on each iteration.
+    for pair in dogs {
+        print_line("#{pair[0]} is a #{pair[1]}.")
+    }
 
-  // Alternatively, you can destructure the list with a tuple expression.
-  for (key, value) in dogs {
-    print_line("#{key} is a #{value}.")
-  }
+    // Alternatively, you can destructure the list with a tuple expression.
+    for (key, value) in dogs {
+        print_line("#{key} is a #{value}.")
+    }
 }
