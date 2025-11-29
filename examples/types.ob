@@ -44,11 +44,11 @@ trait OneAssoc {
 
 impl Empty for S {}
 
-impl OneGeneric<E> for S {}
+impl OneGeneric<e> for S {}
 
 impl Child for S {}
 
-impl ConstrainedGeneric<E> for S {}
+impl ConstrainedGeneric<e> for S {}
 
 impl OneAssoc for S {
     type A = String
