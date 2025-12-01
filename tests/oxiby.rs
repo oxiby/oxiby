@@ -27,6 +27,7 @@ macro_rules! test_fixture {
 test_fixture!(call, "call");
 test_fixture!(conditional, "conditional");
 test_fixture!(container, "container");
+test_fixture!(fn_param_combos, "fn_param_combos");
 test_fixture!(functions, "functions");
 test_fixture!(hashes, "hashes");
 test_fixture!(lists, "lists");

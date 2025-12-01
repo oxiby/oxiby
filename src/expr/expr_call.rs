@@ -33,7 +33,7 @@ impl<'a> ExprCall<'a> {
         let positional_arg = expr.clone().map(FnArg::Pos);
 
         let keyword_arg = ExprIdent::parser()
-            .then_ignore(just(Token::Colon))
+            .then_ignore(just(Token::Assign))
             .then(expr)
             .map(|(ident, expr)| FnArg::Kw(ident, expr));
 

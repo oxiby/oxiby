@@ -123,17 +123,17 @@ fn main() {
 
     // A struct is constructed by giving its name followed by values for its fields
     let alice = Person {
-        name: ("Alice", "Henderson"),
-        age: 42,
+        name = ("Alice", "Henderson"),
+        age = 42,
         // An enum is constructe by giving its name and variant separated by a dot, followed by any
         // arguments that variant's constructor takes
-        gender: Gender.NonBinary("they/them"),
+        gender = Gender.NonBinary("they/them"),
     }
 
     let bob = Person {
-        name: ("Bob", "Sanders"),
-        age: 67,
-        gender: Gender.Male,
+        name = ("Bob", "Sanders"),
+        age = 67,
+        gender = Gender.Male,
     }
 
     // Expressions are interpolated within strings by enclosing them within curly braces preceded by

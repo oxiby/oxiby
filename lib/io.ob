@@ -2,7 +2,7 @@ pub trait ToString {
     fn to_string(self) -> String
 }
 
-pub fn print_line(s: s) where s: ToString {
+pub fn print_line(s: s) where s ^ ToString {
     if s.public_send("respond_to?", "to_string") {
         puts(s.to_string())
     } else {
@@ -10,7 +10,7 @@ pub fn print_line(s: s) where s: ToString {
     }
 }
 
-pub fn print(s: s) where s: ToString {
+pub fn print(s: s) where s ^ ToString {
     Kernel.print(s)
 }
 

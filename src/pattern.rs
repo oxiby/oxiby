@@ -15,7 +15,7 @@ pub enum Pattern<'a> {
     Type(PatternType<'a>),       // x: Example
     Ident(PatternIdent<'a>),     // x
     Tuple(PatternTuple<'a>),     // (pattern, pattern)
-    Ctor(PatternCtor<'a>),       // Example, Example(x, y), Example { x, y }
+    Ctor(PatternCtor<'a>),       // Example, Example(x, y), Example { x, y -> y2, z -> z2 = "foo" }
     Wildcard,                    // _
 }
 
@@ -29,29 +29,82 @@ impl<'a> Pattern<'a> {
         I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
         M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
     {
-        recursive(|pattern| {
-            choice((
-                just(Token::Underscore).to(Self::Wildcard),
-                PatternLiteral::parser(expr, make_input).map(Self::Literal),
-                PatternType::parser().map(Self::Type),
-                PatternIdent::parser().map(Self::Ident),
-                PatternCtor::parser().map(Self::Ctor),
-                pattern
-                    .separated_by(just(Token::Comma))
-                    .allow_trailing()
-                    .at_least(2)
-                    .collect::<Vec<_>>()
-                    .delimited_by(just(Token::LParen), just(Token::RParen))
-                    .map(move |patterns| {
-                        Self::Tuple(PatternTuple {
-                            patterns,
-                            is_bracketed,
-                        })
-                    }),
-            ))
-        })
-        .labelled("pattern")
-        .boxed()
+        let mut pattern_parser = Recursive::declare();
+        let mut pattern_ctor_parser = Recursive::declare();
+
+        pattern_parser.define(choice((
+            just(Token::Underscore).to(Self::Wildcard),
+            PatternLiteral::parser(expr.clone(), make_input.clone()).map(Self::Literal),
+            PatternType::parser().map(Self::Type),
+            PatternIdent::parser().map(Self::Ident),
+            pattern_ctor_parser.clone().map(Self::Ctor),
+            pattern_parser
+                .clone()
+                .separated_by(just(Token::Comma))
+                .allow_trailing()
+                .at_least(2)
+                .collect::<Vec<_>>()
+                .delimited_by(just(Token::LParen), just(Token::RParen))
+                .map(move |patterns| {
+                    Self::Tuple(PatternTuple {
+                        patterns,
+                        is_bracketed,
+                    })
+                }),
+        )));
+
+        pattern_ctor_parser.define(
+            TypeIdent::parser()
+                .then_ignore(just(Token::Dot))
+                .or_not()
+                .then(TypeIdent::parser())
+                .then(
+                    choice((
+                        just(Token::Underscore)
+                            .delimited_by(just(Token::LParen), just(Token::RParen))
+                            .to(CtorFields::Wildcard),
+                        ExprIdent::parser()
+                            .separated_by(just(Token::Comma))
+                            .allow_trailing()
+                            .collect::<Vec<_>>()
+                            .delimited_by(just(Token::LParen), just(Token::RParen))
+                            .map(CtorFields::Tuple),
+                        ExprIdent::parser()
+                            .then(just(Token::Arrow).ignore_then(ExprIdent::parser()).or_not())
+                            .then(
+                                just(Token::Assign)
+                                    .ignore_then(pattern_parser.clone())
+                                    .or_not(),
+                            )
+                            .separated_by(just(Token::Comma))
+                            .allow_trailing()
+                            .collect::<Vec<_>>()
+                            .delimited_by(just(Token::LBrace), just(Token::RBrace))
+                            .map(|pieces| {
+                                pieces
+                                    .into_iter()
+                                    .map(|((name, rename), pattern)| CtorStructField {
+                                        name,
+                                        rename,
+                                        pattern,
+                                    })
+                                    .collect::<Vec<_>>()
+                            })
+                            .map(CtorFields::Struct),
+                    ))
+                    .or_not(),
+                )
+                .map(|((parent_ty_ident, ty_ident), fields)| PatternCtor {
+                    parent_ty_ident,
+                    ty_ident,
+                    fields: fields.unwrap_or(CtorFields::Unit),
+                })
+                .labelled("constructor pattern")
+                .as_context()
+                .boxed(),
+        );
+
+        pattern_parser.labelled("pattern").boxed()
     }
 }
 
@@ -203,46 +256,7 @@ impl WriteRuby for PatternTuple<'_> {
 pub struct PatternCtor<'a> {
     parent_ty_ident: Option<TypeIdent<'a>>,
     ty_ident: TypeIdent<'a>,
-    idents: CtorIdents<'a>,
-}
-
-impl<'a> PatternCtor<'a> {
-    pub fn parser<I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
-        TypeIdent::parser()
-            .then_ignore(just(Token::Dot))
-            .or_not()
-            .then(TypeIdent::parser())
-            .then(
-                choice((
-                    just(Token::Underscore)
-                        .delimited_by(just(Token::LParen), just(Token::RParen))
-                        .to(CtorIdents::Wildcard),
-                    ExprIdent::parser()
-                        .separated_by(just(Token::Comma))
-                        .collect::<Vec<_>>()
-                        .delimited_by(just(Token::LParen), just(Token::RParen))
-                        .map(CtorIdents::Tuple),
-                    ExprIdent::parser()
-                        .separated_by(just(Token::Comma))
-                        .collect::<Vec<_>>()
-                        .delimited_by(just(Token::LBrace), just(Token::RBrace))
-                        .map(CtorIdents::Struct),
-                ))
-                .or_not(),
-            )
-            .map(|((parent_ty_ident, ty_ident), idents)| Self {
-                parent_ty_ident,
-                ty_ident,
-                idents: idents.unwrap_or(CtorIdents::Unit),
-            })
-            .labelled("constructor pattern")
-            .as_context()
-            .boxed()
-    }
+    fields: CtorFields<'a>,
 }
 
 impl WriteRuby for PatternCtor<'_> {
@@ -268,34 +282,64 @@ impl WriteRuby for PatternCtor<'_> {
             scope.fragment(ty_ident_string);
         }
 
-        match &self.idents {
-            CtorIdents::Unit | CtorIdents::Wildcard => (),
-            CtorIdents::Tuple(idents) => scope.fragment(format!(
+        match &self.fields {
+            CtorFields::Unit | CtorFields::Wildcard => (),
+            CtorFields::Tuple(fields) => scope.fragment(format!(
                 "({})",
-                idents
+                fields
                     .iter()
                     .map(ToString::to_string)
                     .collect::<Vec<_>>()
                     .join(", "),
             )),
-            CtorIdents::Struct(idents) => scope.fragment(format!(
-                "({})",
-                idents
-                    .iter()
-                    .map(|ident| format!("{ident}:"))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            )),
+            CtorFields::Struct(fields) => {
+                scope.fragment("(");
+
+                for (index, field) in fields.iter().enumerate() {
+                    let CtorStructField {
+                        name,
+                        rename,
+                        pattern,
+                    } = field;
+
+                    match (rename, pattern) {
+                        (Some(rename), Some(pattern)) => {
+                            scope.fragment(format!("{name}: "));
+                            pattern.write_ruby(scope);
+                            scope.fragment(format!(" => {rename}"));
+                        }
+                        (Some(rename), None) => scope.fragment(format!("{name}: {rename}")),
+                        (None, Some(pattern)) => {
+                            scope.fragment(format!("{name}: "));
+                            pattern.write_ruby(scope);
+                        }
+                        _ => scope.fragment(format!("{name}:")),
+                    }
+
+                    if index < fields.len() - 1 {
+                        scope.fragment(", ");
+                    }
+                }
+
+                scope.fragment(")");
+            }
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum CtorIdents<'a> {
+pub enum CtorFields<'a> {
     Unit,
     Tuple(Vec<ExprIdent<'a>>),
-    Struct(Vec<ExprIdent<'a>>),
+    Struct(Vec<CtorStructField<'a>>),
     Wildcard,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CtorStructField<'a> {
+    name: ExprIdent<'a>,
+    rename: Option<ExprIdent<'a>>,
+    pattern: Option<Pattern<'a>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -60,15 +60,15 @@ impl OneAssoc for S {
 
 fn main() {
     let s = S {
-      a: "a",
-      b: "b",
+      a = "a",
+      b = "b",
     }
 
     let unit = E.U
     let tuple = E.T("1", "2")
     let strct = E.S {
-      c: "c",
-      d: "d",
+      c = "c",
+      d = "d",
     }
 
     let assoc = S.test()
@@ -76,12 +76,12 @@ fn main() {
     let x = match tuple {
       E.U -> "unit",
       E.T(x, y) -> "tuple: 0=#{x}, 1=#{y}",
-      E.S { c, d } -> "struct: c=#{c}, d=#{d}",
+      E.S { c, d -> x } -> "struct: c=#{c}, d=#{x}",
     }
 
     let y = match tuple {
       U -> "unit",
       T(x, y) -> "tuple: 0=#{x}, 1=#{y}",
-      St { c, d } -> "struct: c=#{c}, d=#{d}",
+      St { c, d -> x } -> "struct: c=#{c}, d=#{x}",
     }
 }

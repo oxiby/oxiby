@@ -126,8 +126,14 @@ module Patterns
 
   def self.structs
     dog = Dog.allocate.tap { |__oxiby_new| __oxiby_new.send(:initialize, name: "Carl", breed: "Pug") }
-    dog => Dog(name:, breed:)
-    ::Std::Io.print_line("#{name} is a #{breed}.")
+    dog => Dog(name: moniker, breed:)
+    ::Std::Io.print_line("#{moniker} is a #{breed}.")
+    case dog
+    in Dog(name: "Carl", breed: "Pug" => kind)
+      ::Std::Io.print_line("You found Carl, a #{kind}!")
+    else
+      ::Std::Io.print_line("This ain't Carl!")
+    end
   end
 
   def self.main

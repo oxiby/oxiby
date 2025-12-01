@@ -15,7 +15,7 @@ fn examples() {
     E.V
     U
     St {
-        f: 1,
+        f = 1,
     }
 
     f2()

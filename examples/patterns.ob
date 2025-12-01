@@ -8,7 +8,7 @@ enum Message {
 fn message() {
     let message = [
         Message.Quit,
-        Message.Move { x: 1, y: 2 },
+        Message.Move { x = 1, y = 2 },
         Message.Write("hello"),
         Message.ChangeColor(4, 5, 6),
     ].sample()
@@ -42,13 +42,21 @@ struct Dog {
 
 fn structs() {
     let dog = Dog {
-        name: "Carl",
-        breed: "Pug",
+        name = "Carl",
+        breed = "Pug",
     }
 
-    let Dog { name, breed } = dog
+    let Dog { name -> moniker, breed } = dog
 
-    print_line("#{name} is a #{breed}.")
+    print_line("#{moniker} is a #{breed}.")
+
+    match dog {
+        Dog {
+            name = "Carl",
+            breed -> kind = "Pug",
+        } -> print_line("You found Carl, a #{kind}!"),
+        _ -> print_line("This ain't Carl!"),
+    }
 }
 
 fn main() {

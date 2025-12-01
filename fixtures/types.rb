@@ -166,16 +166,16 @@ module Types
       "unit"
     in E::T(x, y)
       "tuple: 0=#{x}, 1=#{y}"
-    in E::S(c:, d:)
-      "struct: c=#{c}, d=#{d}"
+    in E::S(c:, d: x)
+      "struct: c=#{c}, d=#{x}"
     end
     y = case tuple
     in E::U
       "unit"
     in E::T(x, y)
       "tuple: 0=#{x}, 1=#{y}"
-    in E::S(c:, d:)
-      "struct: c=#{c}, d=#{d}"
+    in E::S(c:, d: x)
+      "struct: c=#{c}, d=#{x}"
     end
   end
 

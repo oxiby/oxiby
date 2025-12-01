@@ -33,7 +33,7 @@ impl<'a> ExprEnum<'a> {
                         .delimited_by(just(Token::LParen), just(Token::RParen))
                         .map(EnumConstructor::Tuple),
                     ExprIdent::parser()
-                        .then_ignore(just(Token::Colon))
+                        .then_ignore(just(Token::Assign))
                         .then(expr)
                         .separated_by(just(Token::Comma))
                         .allow_trailing()

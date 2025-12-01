@@ -10,8 +10,8 @@ fn main() {
     no_params()
     one_pos("a")
     two_pos("a", "b")
-    one_kw(a: "a")
-    two_kw(a: "a", b: "b")
-    one_each("a", b: "b")
-    two_each("a", "b", c: "c", d: "d")
+    one_kw(a = "a")
+    two_kw(a = "a", b = "b")
+    one_each("a", b = "b")
+    two_each("a", "b", c = "c", d = "d")
 }

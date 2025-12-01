@@ -24,7 +24,7 @@ impl<'a> ExprStruct<'a> {
         Type::parser()
             .then(
                 ExprIdent::parser()
-                    .then_ignore(just(Token::Colon))
+                    .then_ignore(just(Token::Assign))
                     .then(expr)
                     .separated_by(just(Token::Comma))
                     .allow_trailing()

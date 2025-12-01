@@ -85,8 +85,8 @@ struct Game {
 
 fn main() {
     let game = Game {
-        player: Player.X,
-        rows: List.times(3, fn () { List.times(3, fn () { None }) }),
+        player = Player.X,
+        rows = List.times(3, fn () { List.times(3, fn () { None }) }),
     }
 
     loop {
@@ -122,7 +122,7 @@ fn main() {
 
             match read_line().map(fn (s) { s.to_i() }) {
                 Ok(cell) -> {
-                    if game.choose(cell: cell, player: game.player) {
+                    if game.choose(cell = cell, player = game.player) {
                         game.player = match game.player {
                             Player.X -> Player.O,
                             Player.O -> Player.X,
