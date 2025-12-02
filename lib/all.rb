@@ -1,7 +1,7 @@
 require_relative "fs"
-require_relative "hash_map"
 require_relative "io"
 require_relative "list"
+require_relative "map"
 require_relative "ops"
 require_relative "option"
 require_relative "range"

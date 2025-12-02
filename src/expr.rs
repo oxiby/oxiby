@@ -19,12 +19,12 @@ mod expr_continue;
 mod expr_enum;
 mod expr_float;
 mod expr_for_loop;
-mod expr_hash_map;
 mod expr_ident;
 mod expr_integer;
 mod expr_let;
 mod expr_list;
 mod expr_loop;
+mod expr_map;
 mod expr_match;
 mod expr_parenthesized;
 mod expr_range;
@@ -46,12 +46,12 @@ pub use expr_continue::ExprContinue;
 pub use expr_enum::ExprEnum;
 pub use expr_float::ExprFloat;
 pub use expr_for_loop::ExprForLoop;
-pub use expr_hash_map::ExprHashMap;
 pub use expr_ident::{ExprIdent, ExprTypeIdent};
 pub use expr_integer::ExprInteger;
 pub use expr_let::ExprLet;
 pub use expr_list::ExprList;
 pub use expr_loop::ExprLoop;
+pub use expr_map::ExprMap;
 pub use expr_match::ExprMatch;
 pub use expr_parenthesized::ExprParenthesized;
 pub use expr_range::ExprRange;
@@ -72,7 +72,7 @@ pub enum Expr<'a> {
     Range(ExprRange<'a>),
 
     // Compound primitives
-    HashMap(ExprHashMap<'a>),
+    Map(ExprMap<'a>),
     List(ExprList<'a>),
     Tuple(ExprTuple<'a>),
 
@@ -460,7 +460,7 @@ impl<'a> Expr<'a> {
             Self::Float(expr_float) => expr_float.span,
             Self::String(expr_string) => expr_string.span,
             Self::Range(expr_range) => expr_range.span,
-            Self::HashMap(expr_hash_map) => expr_hash_map.span,
+            Self::Map(expr_map) => expr_map.span,
             Self::List(expr_list) => expr_list.span,
             Self::Tuple(expr_tuple) => expr_tuple.span,
             Self::Struct(expr_struct) => expr_struct.span,
@@ -497,7 +497,7 @@ impl WriteRuby for Expr<'_> {
             Self::Float(expr_float) => expr_float.write_ruby(scope),
             Self::String(expr_string) => expr_string.write_ruby(scope),
             Self::Range(expr_range) => expr_range.write_ruby(scope),
-            Self::HashMap(expr_hash_map) => expr_hash_map.write_ruby(scope),
+            Self::Map(expr_map) => expr_map.write_ruby(scope),
             Self::List(expr_list) => expr_list.write_ruby(scope),
             Self::Tuple(expr_tuple) => expr_tuple.write_ruby(scope),
             Self::Struct(expr_struct) => expr_struct.write_ruby(scope),

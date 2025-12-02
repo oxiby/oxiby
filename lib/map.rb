@@ -1,4 +1,4 @@
-class HashMap < Hash
+class Map < Hash
   def [](key)
     value = super
 

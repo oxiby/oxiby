@@ -2,7 +2,7 @@
 
 require_relative "std/all"
 
-module Hashes
+module Maps
   def self.main
     dogs = { "Carl" => "Pug", "Koda" => "Terrier" }
     (dogs).each do |pair|

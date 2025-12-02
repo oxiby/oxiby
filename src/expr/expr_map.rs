@@ -4,12 +4,12 @@ use crate::compiler::{Scope, WriteRuby};
 use crate::expr::Expr;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprHashMap<'a> {
+pub struct ExprMap<'a> {
     pub(crate) pairs: Vec<(Expr<'a>, Expr<'a>)>,
     pub(crate) span: SimpleSpan,
 }
 
-impl WriteRuby for ExprHashMap<'_> {
+impl WriteRuby for ExprMap<'_> {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.fragment("{ ");
         for (index, (key, value)) in self.pairs.iter().enumerate() {

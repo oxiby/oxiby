@@ -1,5 +1,5 @@
 fn main() {
-    // A hash map is an unordered collection of key/value pairs.
+    // A map is an unordered collection of key/value pairs.
     let dogs = [
         "Carl" = "Pug",
         "Koda" = "Terrier",

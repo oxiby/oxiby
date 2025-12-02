@@ -15,7 +15,7 @@ use crate::token::Token;
 
 static STD_RB: [[&str; 2]; 5] = [
     ["all.rb", include_str!("../lib/all.rb")],
-    ["hash_map.rb", include_str!("../lib/hash_map.rb")],
+    ["map.rb", include_str!("../lib/map.rb")],
     ["range.rb", include_str!("../lib/range.rb")],
     ["string.rb", include_str!("../lib/string.rb")],
     ["tuple.rb", include_str!("../lib/tuple.rb")],

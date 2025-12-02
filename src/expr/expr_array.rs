@@ -3,7 +3,7 @@ use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
 use crate::ast::Operator;
-use crate::expr::{Expr, ExprBinary, ExprHashMap, ExprList};
+use crate::expr::{Expr, ExprBinary, ExprList, ExprMap};
 use crate::token::Token;
 
 pub fn expr_array_parser<'a, I>(
@@ -39,7 +39,7 @@ where
                     })
                     .collect::<Vec<_>>();
 
-                Expr::HashMap(ExprHashMap {
+                Expr::Map(ExprMap {
                     pairs,
                     span: extra.span(),
                 })
