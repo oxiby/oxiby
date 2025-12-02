@@ -8,6 +8,7 @@ use crate::ast::Operator;
 use crate::compiler::{Scope, WriteRuby};
 use crate::token::Token;
 
+mod expr_array;
 mod expr_block;
 mod expr_boolean;
 mod expr_break;
@@ -34,6 +35,7 @@ mod expr_struct;
 mod expr_tuple;
 mod expr_while_loop;
 
+pub use expr_array::expr_array_parser;
 pub use expr_block::ExprBlock;
 pub use expr_boolean::ExprBoolean;
 pub use expr_break::ExprBreak;
@@ -129,13 +131,12 @@ impl<'a> Expr<'a> {
                     .map(Expr::String)
                     .boxed(),
                 ExprRange::parser(expr.clone()).map(Expr::Range).boxed(),
-                ExprList::parser(expr.clone()).map(Expr::List).boxed(),
+                expr_array_parser(expr.clone()).boxed(),
                 ExprTuple::parser(expr.clone()).map(Expr::Tuple).boxed(),
                 ExprEnum::parser(expr.clone()).map(Expr::Enum).boxed(),
                 ExprStruct::parser(expr.clone()).map(Expr::Struct).boxed(),
                 ExprIdent::parser().map(Expr::ExprIdent).boxed(),
                 ExprTypeIdent::parser().map(Expr::TypeIdent).boxed(),
-                ExprHashMap::parser(expr.clone()).map(Expr::HashMap).boxed(),
                 ExprClosure::parser(expr.clone()).map(Expr::Closure).boxed(),
                 ExprBreak::parser(expr.clone()).map(Expr::Break).boxed(),
                 ExprConditional::parser(expr.clone())

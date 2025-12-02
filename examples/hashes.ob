@@ -1,8 +1,8 @@
 fn main() {
     // A hash map is an unordered collection of key/value pairs.
     let dogs = [
-        "Carl": "Pug",
-        "Koda": "Terrier",
+        "Carl" = "Pug",
+        "Koda" = "Terrier",
     ]
 
     // Using a for/in loop, a tuple of key and value will be bound to `pair` on each iteration.
