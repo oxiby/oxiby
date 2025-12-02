@@ -34,9 +34,12 @@ impl TryFrom<&Path> for OxibyModulePath {
     fn try_from(value: &Path) -> Result<Self, Self::Error> {
         let mut path_buf = value.to_path_buf();
         path_buf.set_extension("");
-        let modules_str = path_buf
-            .to_str()
-            .ok_or_else(|| "Path was not valid unicode.".to_string())?;
+        let modules_str = path_buf.to_str().ok_or_else(|| {
+            format!(
+                "Bad path `{}` for Oxiby source file. Paths must be valid unicode.",
+                value.display()
+            )
+        })?;
         let parts = modules_str
             .split('/')
             .map(ToOwned::to_owned)
@@ -50,22 +53,22 @@ impl TryFrom<&Path> for OxibyModulePath {
                     .ok_or_else(|| "Path contained empty component.".to_string())?;
 
                 if !(first == '_' || first.is_ascii_lowercase()) {
-                    return Err(
-                        "Oxiby source files must have paths components beginning with the \
-                         lowercase ASCII alphabet or an underscore."
-                            .to_string(),
-                    );
+                    return Err(format!(
+                        "Bad path `{}` for Oxiby source file. Paths must have only components \
+                         beginning with the lowercase ASCII alphabet or an underscore.",
+                        value.display()
+                    ));
                 }
             }
 
             if !part.chars().all(|chr| {
                 chr == '/' || chr == '_' || chr.is_ascii_digit() || chr.is_ascii_lowercase()
             }) {
-                return Err(
-                    "Oxiby source files must have paths consisting only of the lowercase ASCII \
-                     alphabet, digits 0-9, underscores, and directory separators."
-                        .to_string(),
-                );
+                return Err(format!(
+                    "Bad path `{}` for Oxiby source file. Paths must consist only of the \
+                     lowercase ASCII alphabet, digits 0-9, underscores, and directory separators.",
+                    value.display()
+                ));
             }
         }
 
