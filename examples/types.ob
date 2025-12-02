@@ -37,9 +37,9 @@ trait Child where Self ^ Empty {}
 trait ConstrainedGeneric<t> where t ^ Empty {}
 
 trait OneAssoc {
-    type A
+    type a
 
-    pub fn test() -> Self.A
+    pub fn test() -> a
 }
 
 impl Empty for S {}
@@ -51,9 +51,9 @@ impl Child for S {}
 impl ConstrainedGeneric<e> for S {}
 
 impl OneAssoc for S {
-    type A = String
+    type a = String
 
-    pub fn test() -> Self.A {
+    pub fn test() -> a {
       "test"
     }
 }

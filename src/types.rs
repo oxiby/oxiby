@@ -70,7 +70,7 @@ pub enum TyVar<'a> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AssociatedType<'a> {
-    pub ty: Type<'a>,
+    pub name: ExprIdent<'a>,
     pub requirements: Option<Vec<Type<'a>>>,
     pub default: Option<Type<'a>>,
 }
@@ -81,15 +81,15 @@ impl<'a> AssociatedType<'a> {
     where
         I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
     {
-        Type::parser()
+        ExprIdent::parser()
             .then(
                 just(Token::Caret)
                     .ignore_then(Type::parser().separated_by(just(Token::Add)).collect())
                     .or_not(),
             )
             .then(just(Token::Assign).ignore_then(Type::parser()).or_not())
-            .map(|((ty, requirements), default)| Self {
-                ty,
+            .map(|((name, requirements), default)| Self {
+                name,
                 requirements,
                 default,
             })

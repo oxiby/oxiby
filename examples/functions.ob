@@ -13,16 +13,16 @@ fn identity(t: t) -> t {
 }
 
 trait AssocReq {
-    type Out ^ Requirement
+    type out ^ Requirement
 }
 
 trait GenericTrait<t> {
 }
 
 trait Add<rhs> where rhs = Self {
-    type Output
+    type output
 
-    fn add(self, other: rhs) -> Self.Output
+    fn add(self, other: rhs) -> output
 }
 
 impl Add<Integer> for Integer {
