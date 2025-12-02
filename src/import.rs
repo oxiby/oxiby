@@ -42,14 +42,28 @@ impl TryFrom<&Path> for OxibyModulePath {
             .map(ToOwned::to_owned)
             .collect::<Vec<_>>();
 
-        for part in &parts {
-            if !part
-                .chars()
-                .all(|chr| chr == '/' || chr == '_' || chr.is_ascii_lowercase())
-            {
+        for (index, part) in parts.iter().enumerate() {
+            if index == 0 {
+                let first = part
+                    .chars()
+                    .nth(0)
+                    .ok_or_else(|| "Path contained empty component.".to_string())?;
+
+                if !(first == '_' || first.is_ascii_lowercase()) {
+                    return Err(
+                        "Oxiby source files must have paths components beginning with the \
+                         lowercase ASCII alphabet or an underscore."
+                            .to_string(),
+                    );
+                }
+            }
+
+            if !part.chars().all(|chr| {
+                chr == '/' || chr == '_' || chr.is_ascii_digit() || chr.is_ascii_lowercase()
+            }) {
                 return Err(
                     "Oxiby source files must have paths consisting only of the lowercase ASCII \
-                     alphabet, underscores, and directory separators."
+                     alphabet, digits 0-9, underscores, and directory separators."
                         .to_string(),
                 );
             }
