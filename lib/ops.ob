@@ -1,5 +1,5 @@
 pub trait Add<rhs> where rhs = Self {
-    type Output
+    type output
 
-    fn add(self, other: rhs) -> Self.Output
+    fn add(self, other: rhs) -> output
 }
