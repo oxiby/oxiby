@@ -1,3 +1,4 @@
+require_relative "fs"
 require_relative "hash_map"
 require_relative "io"
 require_relative "list"

@@ -1,0 +1,18 @@
+pub fn read_file(path: String) -> Result<String, String> {
+    ruby {
+        contents = nil
+        error = nil
+
+        begin
+            contents = File.read(path)
+        rescue => e
+            error = e
+        end
+    }
+
+    if ruby { error.nil? } {
+        Ok(contents)
+    } else {
+        Err(error)
+    }
+}
