@@ -264,7 +264,7 @@ impl<'a> Expr<'a> {
                 .boxed(),
                 infix(
                     left(2),
-                    just(Token::Assign).labelled("operator"),
+                    just(Token::SubAssign).labelled("operator"),
                     |lhs: Expr, _, rhs, extra| {
                         Expr::Binary(ExprBinary {
                             op: Operator::SubAssign,
