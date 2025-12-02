@@ -276,8 +276,8 @@ pub fn lexer<'src>()
         just("^").to(Token::Caret),
         just("&&").to(Token::And),
         just("||").to(Token::Or),
-        just("!").to(Token::Not),
         just("!=").to(Token::Ne),
+        just("!").to(Token::Not),
         just("<=").to(Token::LtEq),
         just(">=").to(Token::GtEq),
         just("<").to(Token::Lt),
@@ -384,4 +384,23 @@ pub fn lexer<'src>()
         .recover_with(skip_then_retry_until(any().ignored(), end()))
         .repeated()
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Ensure `!=` becomes `Token::Ne` rather than consuming the `!` by itself
+    #[test]
+    fn lex_ne() {
+        assert_eq!(
+            lexer()
+                .parse("!=")
+                .unwrap()
+                .into_iter()
+                .map(|spanned| spanned.0.to_string())
+                .collect::<Vec<_>>(),
+            vec!["!="]
+        );
+    }
 }
