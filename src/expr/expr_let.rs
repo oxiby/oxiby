@@ -10,8 +10,8 @@ use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprLet<'a> {
-    pattern: Pattern<'a>,
-    body: Box<Expr<'a>>,
+    pub(crate) pattern: Pattern<'a>,
+    pub(crate) body: Box<Expr<'a>>,
     pub(crate) span: SimpleSpan,
 }
 

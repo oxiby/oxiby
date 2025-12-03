@@ -528,10 +528,10 @@ impl WriteRuby for Expr<'_> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprBinary<'a> {
-    op: Operator,
-    lhs: Box<Expr<'a>>,
-    rhs: Box<Expr<'a>>,
-    span: SimpleSpan,
+    pub(crate) op: Operator,
+    pub(crate) lhs: Box<Expr<'a>>,
+    pub(crate) rhs: Box<Expr<'a>>,
+    pub(crate) span: SimpleSpan,
 }
 
 impl WriteRuby for ExprBinary<'_> {

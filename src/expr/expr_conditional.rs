@@ -9,9 +9,9 @@ use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprConditional<'a> {
-    condition: Box<Expr<'a>>,
-    then_branch: ExprBlock<'a>,
-    else_branch: Option<ConditionalElseBranch<'a>>,
+    pub(crate) condition: Box<Expr<'a>>,
+    pub(crate) then_branch: ExprBlock<'a>,
+    pub(crate) else_branch: Option<ConditionalElseBranch<'a>>,
     pub(crate) span: SimpleSpan,
 }
 

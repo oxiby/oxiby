@@ -163,7 +163,7 @@ impl WriteRuby for PatternLiteral<'_> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PatternIdent<'a> {
-    ident: ExprIdent<'a>,
+    pub(crate) ident: ExprIdent<'a>,
 }
 
 impl<'a> PatternIdent<'a> {
