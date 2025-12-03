@@ -26,7 +26,7 @@ impl<'a> Constraint<'a> {
             ExprIdent::parser().map(TyVar::ExprIdent),
         ))
         .then(
-            just(Token::Caret)
+            just(Token::Is)
                 .ignore_then(Type::parser().separated_by(just(Token::Add)).collect())
                 .or_not(),
         )
@@ -83,7 +83,7 @@ impl<'a> AssociatedType<'a> {
     {
         ExprIdent::parser()
             .then(
-                just(Token::Caret)
+                just(Token::Is)
                     .ignore_then(Type::parser().separated_by(just(Token::Add)).collect())
                     .or_not(),
             )

@@ -32,9 +32,9 @@ trait Empty {}
 
 trait OneGeneric<t> {}
 
-trait Child where Self ^ Empty {}
+trait Child where Self is Empty {}
 
-trait ConstrainedGeneric<t> where t ^ Empty {}
+trait ConstrainedGeneric<t> where t is Empty {}
 
 trait OneAssoc {
     type a

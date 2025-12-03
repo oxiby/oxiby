@@ -13,7 +13,7 @@ fn identity(t: t) -> t {
 }
 
 trait AssocReq {
-    type out ^ Requirement
+    type out is Requirement
 }
 
 trait GenericTrait<t> {
@@ -31,7 +31,7 @@ impl Add<Integer> for Integer {
     }
 }
 
-fn add(a: a, b: a) -> a where a ^ Add {
+fn add(a: a, b: a) -> a where a is Add {
     a + b
 }
 

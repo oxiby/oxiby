@@ -1,5 +1,5 @@
 pub struct List<t> {
-    pub fn times(n: Integer, f: f) -> List<t> where f ^ Fn() -> t {
+    pub fn times(n: Integer, f: f) -> List<t> where f is Fn() -> t {
         let list = []
 
         for i in (1..=n) {
