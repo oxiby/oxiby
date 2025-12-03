@@ -289,8 +289,6 @@ fn run_check(build: &Build) -> Result<(), Error> {
 fn run_build(build: &Build) -> Result<(), Error> {
     build.create_build_dir()?;
 
-    let mut program_errors = None;
-
     if !build.no_std {
         crate::compile_std(&build.output_dir).map_err(|errs| errs.join(", "))?;
     }
@@ -327,35 +325,11 @@ fn run_build(build: &Build) -> Result<(), Error> {
         }
         Err(error) => match error {
             ModuleError::Program(source, errors) => {
-                program_errors = Some((source.clone(), errors.clone()));
+                return Err(Error::Rich(build.entry_file_string(), source, errors));
             }
+
             ModuleError::Message(error) => return Err(Error::Message(error)),
         },
-    }
-
-    if let Some((source, errors)) = program_errors {
-        let entry_file_string = build.entry_file_string();
-
-        for error in errors {
-            Report::build(
-                ReportKind::Error,
-                (entry_file_string.clone(), error.span().into_range()),
-            )
-            .with_message(error.to_string())
-            .with_label(
-                Label::new((entry_file_string.clone(), error.span().into_range()))
-                    .with_message(error.reason().to_string())
-                    .with_color(Color::Red),
-            )
-            .with_labels(error.contexts().map(|(label, span)| {
-                Label::new((entry_file_string.clone(), span.into_range()))
-                    .with_message(format!("while parsing this {label}"))
-                    .with_color(Color::Yellow)
-            }))
-            .finish()
-            .eprint(sources([(entry_file_string.clone(), source.clone())]))
-            .unwrap();
-        }
     }
 
     Ok(())
