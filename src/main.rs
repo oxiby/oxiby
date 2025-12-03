@@ -2,8 +2,16 @@ use oxiby::CliError;
 
 fn main() {
     if let Err(error) = oxiby::run() {
-        if let CliError::Message(message) = error {
-            eprintln!("ERROR: {}", message);
+        match error {
+            CliError::Message(message) => eprintln!("ERROR: {}", message),
+            CliError::Rich(file_name, source, errors) => {
+                if let Err(error) = oxiby::report_errors(&file_name, &source, errors) {
+                    eprintln!(
+                        "ERROR: I/O error while trying to report compiler errors: {}",
+                        error
+                    );
+                }
+            }
         }
 
         std::process::exit(1);

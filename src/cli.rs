@@ -3,8 +3,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
 use ariadne::{Color, Label, Report, ReportKind, sources};
-use clap::builder::{EnumValueParser, PathBufValueParser, PossibleValue};
-use clap::{Arg, ArgAction, Command, ValueEnum};
+use chumsky::error::Rich;
+use chumsky::span::SimpleSpan;
+use clap::builder::PathBufValueParser;
+use clap::{Arg, ArgAction, Command};
 
 use crate::module::{
     Error as ModuleError,
@@ -16,9 +18,7 @@ use crate::module::{
 
 pub enum Error {
     Message(String),
-    // This means that lexing, parsing, and/or type checking errors were already printed and we
-    // only need to exit non-zero.
-    Exit,
+    Rich(String, String, Vec<Rich<'static, String, SimpleSpan>>),
 }
 
 impl From<String> for Error {
@@ -27,29 +27,7 @@ impl From<String> for Error {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
-pub enum Mode {
-    Ast,
-    Program,
-    Tokens,
-}
-
-impl ValueEnum for Mode {
-    fn value_variants<'a>() -> &'a [Self] {
-        &[Self::Ast, Self::Program, Self::Tokens]
-    }
-
-    fn to_possible_value(&self) -> Option<PossibleValue> {
-        Some(match self {
-            Self::Ast => PossibleValue::new("ast").help("Parser output"),
-            Self::Program => PossibleValue::new("program").help("Ruby source code"),
-            Self::Tokens => PossibleValue::new("tokens").help("Lexer output"),
-        })
-    }
-}
-
 struct Build {
-    mode: Mode,
     stdout: bool,
     no_std: bool,
     entry_file: PathBuf,
@@ -58,7 +36,7 @@ struct Build {
 
 impl Build {
     fn should_write_to_stdout(&self) -> bool {
-        self.stdout || self.mode != Mode::Program
+        self.stdout
     }
 
     fn entry_file_string(&self) -> String {
@@ -108,7 +86,6 @@ pub fn run() -> Result<(), Error> {
     match matches.subcommand() {
         Some(("check", sub_matches)) => {
             run_check(&Build {
-                mode: Mode::Program,
                 stdout: true,
                 no_std: false,
                 entry_file: sub_matches
@@ -120,9 +97,6 @@ pub fn run() -> Result<(), Error> {
         }
         Some(("build", sub_matches)) => {
             run_build(&Build {
-                mode: *sub_matches
-                    .get_one::<Mode>("mode")
-                    .ok_or_else(|| Error::Message("Couldn't determine mode.".to_string()))?,
                 stdout: sub_matches.get_flag("stdout"),
                 no_std: sub_matches.get_flag("no_std"),
                 entry_file: sub_matches
@@ -137,7 +111,6 @@ pub fn run() -> Result<(), Error> {
         }
         Some(("run", sub_matches)) => {
             run_run(&Build {
-                mode: Mode::Program,
                 stdout: false,
                 no_std: sub_matches.get_flag("no_std"),
                 entry_file: sub_matches
@@ -158,7 +131,57 @@ pub fn run() -> Result<(), Error> {
                     .clone(),
             )?;
         }
+        Some(("lex", sub_matches)) => {
+            run_lex(&Build {
+                stdout: true,
+                no_std: true,
+                entry_file: sub_matches
+                    .get_one::<PathBuf>("input")
+                    .ok_or_else(|| Error::Message("Couldn't determine input path.".to_string()))?
+                    .clone(),
+                output_dir: PathBuf::new(),
+            })?;
+        }
+        Some(("parse", sub_matches)) => {
+            run_parse(&Build {
+                stdout: true,
+                no_std: true,
+                entry_file: sub_matches
+                    .get_one::<PathBuf>("input")
+                    .ok_or_else(|| Error::Message("Couldn't determine input path.".to_string()))?
+                    .clone(),
+                output_dir: PathBuf::new(),
+            })?;
+        }
         _ => unreachable!("Clap ensures a subcommand is present"),
+    }
+
+    Ok(())
+}
+
+pub fn report_errors(
+    file_name: &str,
+    source: &str,
+    errors: Vec<Rich<'static, String, SimpleSpan>>,
+) -> Result<(), std::io::Error> {
+    for error in errors {
+        Report::build(
+            ReportKind::Error,
+            (file_name.to_string(), error.span().into_range()),
+        )
+        .with_message(error.to_string())
+        .with_label(
+            Label::new((file_name.to_string(), error.span().into_range()))
+                .with_message(error.reason().to_string())
+                .with_color(Color::Red),
+        )
+        .with_labels(error.contexts().map(|(label, span)| {
+            Label::new((file_name.to_string(), span.into_range()))
+                .with_message(format!("while parsing this {label}"))
+                .with_color(Color::Yellow)
+        }))
+        .finish()
+        .eprint(sources([(file_name.to_string(), source.to_string())]))?;
     }
 
     Ok(())
@@ -176,6 +199,8 @@ fn app() -> Command {
         .subcommand(command_build())
         .subcommand(command_run())
         .subcommand(command_clean())
+        .subcommand(command_lex())
+        .subcommand(command_parse())
 }
 
 fn command_check() -> Command {
@@ -187,15 +212,6 @@ fn command_check() -> Command {
 fn command_build() -> Command {
     Command::new("build")
         .about("Builds an Oxiby program")
-        .arg(
-            Arg::new("mode")
-                .short('m')
-                .long("mode")
-                .value_name("MODE")
-                .help("Type of output to produce")
-                .value_parser(EnumValueParser::<Mode>::new())
-                .default_value("program"),
-        )
         .arg(
             Arg::new("stdout")
                 .short('s')
@@ -221,6 +237,19 @@ fn command_clean() -> Command {
         .about("Removes the output directory and its contents")
         .arg(arg_output())
 }
+
+fn command_lex() -> Command {
+    Command::new("lex")
+        .about("Lexes an Oxiby source file and produces tokens")
+        .arg(arg_input())
+}
+
+fn command_parse() -> Command {
+    Command::new("parse")
+        .about("Parses an Oxiby source file and produces an abstract syntax tree")
+        .arg(arg_input())
+}
+
 fn arg_no_std() -> Arg {
     Arg::new("no_std")
         .long("no-std")
@@ -245,40 +274,13 @@ fn arg_output() -> Arg {
 }
 
 fn run_check(build: &Build) -> Result<(), Error> {
-    let mut program_errors = None;
-
     if let Err(error) = module_check(&build.entry_file) {
         match error {
-            ModuleError::Program(source, errors) => program_errors = Some((source, errors)),
+            ModuleError::Program(source, errors) => {
+                return Err(Error::Rich(build.entry_file_string(), source, errors));
+            }
             ModuleError::Message(error) => return Err(Error::Message(error)),
         }
-    }
-
-    if let Some((source, errors)) = program_errors {
-        let entry_file_string = build.entry_file_string();
-
-        for error in errors {
-            Report::build(
-                ReportKind::Error,
-                (entry_file_string.clone(), error.span().into_range()),
-            )
-            .with_message(error.to_string())
-            .with_label(
-                Label::new((entry_file_string.clone(), error.span().into_range()))
-                    .with_message(error.reason().to_string())
-                    .with_color(Color::Red),
-            )
-            .with_labels(error.contexts().map(|(label, span)| {
-                Label::new((entry_file_string.clone(), span.into_range()))
-                    .with_message(format!("while parsing this {label}"))
-                    .with_color(Color::Yellow)
-            }))
-            .finish()
-            .eprint(sources([(entry_file_string.clone(), source.clone())]))
-            .unwrap();
-        }
-
-        return Err(Error::Exit);
     }
 
     Ok(())
@@ -289,71 +291,46 @@ fn run_build(build: &Build) -> Result<(), Error> {
 
     let mut program_errors = None;
 
-    match build.mode {
-        Mode::Tokens | Mode::Ast => {
-            let result = if build.mode == Mode::Tokens {
-                module_tokens(&build.entry_file)
-            } else {
-                module_ast(&build.entry_file)
-            };
+    if !build.no_std {
+        crate::compile_std(&build.output_dir).map_err(|errs| errs.join(", "))?;
+    }
 
-            match result {
-                Ok(output) => println!("{}", output.trim_end()),
-                Err(error) => match error {
-                    crate::module::Error::Program(source, errors) => {
-                        program_errors = Some((source, errors));
+    let compiled_modules = HashMap::new();
+
+    match module_program(
+        &build.entry_file,
+        build.entry_file.parent(),
+        compiled_modules,
+        true,
+    ) {
+        Ok(compiled_modules) => {
+            for (input_path, output) in compiled_modules {
+                if build.should_write_to_stdout() {
+                    println!("{output}");
+                } else {
+                    let output_file = build.output_file(&input_path);
+
+                    if let Some(parent) = output_file.parent() {
+                        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
                     }
-                    crate::module::Error::Message(error) => return Err(Error::Message(error)),
-                },
-            }
-        }
-        Mode::Program => {
-            if !build.no_std {
-                crate::compile_std(&build.output_dir).map_err(|errs| errs.join(", "))?;
-            }
 
-            let compiled_modules = HashMap::new();
-
-            match module_program(
-                &build.entry_file,
-                build.entry_file.parent(),
-                compiled_modules,
-                true,
-            ) {
-                Ok(compiled_modules) => {
-                    for (input_path, output) in compiled_modules {
-                        if build.should_write_to_stdout() {
-                            println!("{output}");
-                        } else {
-                            let output_file = build.output_file(&input_path);
-
-                            if let Some(parent) = output_file.parent() {
-                                std::fs::create_dir_all(parent)
-                                    .map_err(|error| error.to_string())?;
-                            }
-
-                            std::fs::write(
-                                &output_file,
-                                output.strip_suffix('\n').unwrap_or(&output),
+                    std::fs::write(&output_file, output.strip_suffix('\n').unwrap_or(&output))
+                        .map_err(|error| {
+                            format!(
+                                "trying to write module to {}: {}",
+                                output_file.display(),
+                                error,
                             )
-                            .map_err(|error| {
-                                format!(
-                                    "trying to write module to {}: {}",
-                                    output_file.display(),
-                                    error,
-                                )
-                            })?;
-                        }
-                    }
+                        })?;
                 }
-                Err(error) => match error {
-                    ModuleError::Program(source, errors) => {
-                        program_errors = Some((source.clone(), errors.clone()));
-                    }
-                    ModuleError::Message(error) => return Err(Error::Message(error)),
-                },
             }
         }
+        Err(error) => match error {
+            ModuleError::Program(source, errors) => {
+                program_errors = Some((source.clone(), errors.clone()));
+            }
+            ModuleError::Message(error) => return Err(Error::Message(error)),
+        },
     }
 
     if let Some((source, errors)) = program_errors {
@@ -403,6 +380,34 @@ fn run_clean(output: PathBuf) -> Result<(), String> {
     } else {
         Ok(())
     }
+}
+
+fn run_lex(build: &Build) -> Result<(), Error> {
+    match module_tokens(&build.entry_file) {
+        Ok(output) => println!("{}", output.trim_end()),
+        Err(error) => match error {
+            ModuleError::Program(source, errors) => {
+                return Err(Error::Rich(build.entry_file_string(), source, errors));
+            }
+            ModuleError::Message(error) => return Err(Error::Message(error)),
+        },
+    }
+
+    Ok(())
+}
+
+fn run_parse(build: &Build) -> Result<(), Error> {
+    match module_ast(&build.entry_file) {
+        Ok(output) => println!("{}", output.trim_end()),
+        Err(error) => match error {
+            ModuleError::Program(source, errors) => {
+                return Err(Error::Rich(build.entry_file_string(), source, errors));
+            }
+            ModuleError::Message(error) => return Err(Error::Message(error)),
+        },
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

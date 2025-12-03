@@ -17,7 +17,7 @@ mod token;
 mod types;
 
 pub use ast::{make_input, parser};
-pub use cli::{Error as CliError, run};
+pub use cli::{Error as CliError, report_errors, run};
 pub use compiler::{compile_module, compile_std, compile_str};
 pub use token::{Token, lexer};
 
