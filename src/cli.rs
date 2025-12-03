@@ -398,7 +398,11 @@ fn run_run(build: &Build) -> Result<(), Error> {
 }
 
 fn run_clean(output: PathBuf) -> Result<(), String> {
-    std::fs::remove_dir_all(output).map_err(|error| error.to_string())
+    if output.exists() {
+        std::fs::remove_dir_all(output).map_err(|error| error.to_string())
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
