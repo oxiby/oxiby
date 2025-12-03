@@ -1,9 +1,10 @@
 use chumsky::input::BorrowInput;
 use chumsky::prelude::*;
 
-use super::ItemFn;
 use crate::Spanned;
 use crate::ast::Visibility;
+use crate::expr::Expr;
+use crate::item::item_fn::Signature;
 use crate::token::Token;
 use crate::types::{AssociatedType, Constraint, Type};
 
@@ -13,7 +14,7 @@ pub struct ItemTrait<'a> {
     name: Type<'a>,
     constraints: Option<Vec<Constraint<'a>>>,
     associated_types: Option<Vec<AssociatedType<'a>>>,
-    functions: Vec<ItemFn<'a>>,
+    functions: Vec<TraitFn<'a>>,
 }
 
 impl<'a> ItemTrait<'a> {
@@ -37,7 +38,7 @@ impl<'a> ItemTrait<'a> {
                     .or_not(),
             )
             .then(
-                ItemFn::parser(make_input, true)
+                TraitFn::parser(make_input, true)
                     .repeated()
                     .collect::<Vec<_>>()
                     .or_not(),
@@ -53,6 +54,40 @@ impl<'a> ItemTrait<'a> {
                 },
             )
             .labelled("trait")
+            .as_context()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TraitFn<'a> {
+    pub(crate) signature: Signature<'a>,
+    pub(crate) body: Option<Vec<Expr<'a>>>,
+    pub(crate) span: SimpleSpan,
+}
+
+impl<'a> TraitFn<'a> {
+    pub fn parser<I, M>(
+        make_input: M,
+        associated_fn: bool,
+    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
+    where
+        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
+        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
+    {
+        Signature::parser(associated_fn)
+            .then(
+                Expr::parser(make_input)
+                    .repeated()
+                    .collect::<Vec<_>>()
+                    .delimited_by(just(Token::LBrace), just(Token::RBrace))
+                    .or_not(),
+            )
+            .map_with(|(signature, body), extra| Self {
+                signature,
+                body,
+                span: extra.span(),
+            })
+            .labelled("trait function")
             .as_context()
     }
 }

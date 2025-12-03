@@ -10,15 +10,8 @@ use crate::types::{Constraint, Type};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ItemFn<'a> {
-    pub(crate) visibility: Visibility,
-    pub(crate) name: ExprIdent<'a>,
-    pub(crate) self_param: bool,
-    pub(crate) associated_fn: bool,
-    pub(crate) positional_params: Vec<FnParam<'a>>,
-    pub(crate) keyword_params: Vec<FnParam<'a>>,
-    pub(crate) return_ty: Option<Type<'a>>,
-    pub(crate) constraints: Option<Vec<Constraint<'a>>>,
-    pub(crate) body: Option<Vec<Expr<'a>>>,
+    pub(crate) signature: Signature<'a>,
+    pub(crate) body: Vec<Expr<'a>>,
     pub(crate) span: SimpleSpan,
 }
 
@@ -30,6 +23,119 @@ impl<'a> ItemFn<'a> {
     where
         I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
         M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
+    {
+        Signature::parser(associated_fn)
+            .then(
+                Expr::parser(make_input)
+                    .repeated()
+                    .collect::<Vec<_>>()
+                    .delimited_by(just(Token::LBrace), just(Token::RBrace)),
+            )
+            .map_with(|(signature, body), extra| Self {
+                signature,
+                body,
+                span: extra.span(),
+            })
+            .labelled("function")
+            .as_context()
+    }
+
+    #[inline]
+    pub fn has_params(&self) -> bool {
+        self.has_self_param() || self.has_positional_params() || self.has_keyword_params()
+    }
+
+    #[inline]
+    pub fn has_self_param(&self) -> bool {
+        self.signature.self_param
+    }
+
+    #[inline]
+    pub fn has_explicit_params(&self) -> bool {
+        !self.signature.positional_params.is_empty() || !self.signature.keyword_params.is_empty()
+    }
+
+    #[inline]
+    pub fn has_positional_params(&self) -> bool {
+        !self.signature.positional_params.is_empty()
+    }
+
+    #[inline]
+    pub fn has_keyword_params(&self) -> bool {
+        !self.signature.keyword_params.is_empty()
+    }
+}
+
+impl WriteRuby for ItemFn<'_> {
+    fn write_ruby(&self, scope: &mut Scope) {
+        let mut def = if self.signature.self_param {
+            format!("def {}", self.signature.name)
+        } else {
+            format!("def self.{}", self.signature.name)
+        };
+
+        if self.has_explicit_params() {
+            def.push('(');
+
+            def.push_str(
+                &self
+                    .signature
+                    .positional_params
+                    .iter()
+                    .map(|param| param.ident.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+
+            if self.has_positional_params() && self.has_keyword_params() {
+                def.push_str(", ");
+            }
+
+            def.push_str(
+                &self
+                    .signature
+                    .keyword_params
+                    .iter()
+                    .map(|param| format!("{}:", param.ident))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+
+            def.push(')');
+        }
+
+        scope.block_with_end(def, |scope| {
+            for expr in &self.body {
+                expr.write_ruby(scope);
+                scope.newline();
+            }
+        });
+
+        if self.signature.name.as_str() == "main" {
+            scope.newline();
+            scope.line("main");
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Signature<'a> {
+    pub(crate) visibility: Visibility,
+    pub(crate) name: ExprIdent<'a>,
+    pub(crate) self_param: bool,
+    pub(crate) associated_fn: bool,
+    pub(crate) positional_params: Vec<FnParam<'a>>,
+    pub(crate) keyword_params: Vec<FnParam<'a>>,
+    pub(crate) return_ty: Option<Type<'a>>,
+    pub(crate) constraints: Option<Vec<Constraint<'a>>>,
+}
+
+impl<'a> Signature<'a> {
+    pub fn parser<I>(
+        associated_fn: bool,
+    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
+    where
+        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
     {
         let param_list = choice((
             just(Token::SelfTerm)
@@ -65,15 +171,8 @@ impl<'a> ItemFn<'a> {
             .then(param_list)
             .then(just(Token::Arrow).ignore_then(Type::parser()).or_not())
             .then(Constraint::where_parser().or_not())
-            .then(
-                Expr::parser(make_input)
-                    .repeated()
-                    .collect::<Vec<_>>()
-                    .delimited_by(just(Token::LBrace), just(Token::RBrace))
-                    .or_not(),
-            )
             .try_map(
-                move |(((((visibility, name), params), return_ty), constraints), body), span| {
+                move |((((visibility, name), params), return_ty), constraints), span| {
                     let (self_param, positional_params, keyword_params) = params;
 
                     // TODO: These checks seem to cause a parsing error in the right conditions,
@@ -91,7 +190,7 @@ impl<'a> ItemFn<'a> {
                         ));
                     }
 
-                    Ok(ItemFn {
+                    Ok(Self {
                         visibility,
                         name,
                         self_param,
@@ -100,90 +199,11 @@ impl<'a> ItemFn<'a> {
                         keyword_params,
                         return_ty,
                         constraints,
-                        body,
-                        span,
                     })
                 },
             )
-            .labelled("function")
+            .labelled("function signature")
             .as_context()
-    }
-
-    #[inline]
-    pub fn has_params(&self) -> bool {
-        self.has_self_param() || self.has_positional_params() || self.has_keyword_params()
-    }
-
-    #[inline]
-    pub fn has_self_param(&self) -> bool {
-        self.self_param
-    }
-
-    #[inline]
-    pub fn has_explicit_params(&self) -> bool {
-        !self.positional_params.is_empty() || !self.keyword_params.is_empty()
-    }
-
-    #[inline]
-    pub fn has_positional_params(&self) -> bool {
-        !self.positional_params.is_empty()
-    }
-
-    #[inline]
-    pub fn has_keyword_params(&self) -> bool {
-        !self.keyword_params.is_empty()
-    }
-}
-
-impl WriteRuby for ItemFn<'_> {
-    fn write_ruby(&self, scope: &mut Scope) {
-        let mut def = if self.self_param {
-            format!("def {}", self.name)
-        } else {
-            format!("def self.{}", self.name)
-        };
-
-        if self.has_explicit_params() {
-            def.push('(');
-
-            def.push_str(
-                &self
-                    .positional_params
-                    .iter()
-                    .map(|param| param.ident.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            );
-
-            if self.has_positional_params() && self.has_keyword_params() {
-                def.push_str(", ");
-            }
-
-            def.push_str(
-                &self
-                    .keyword_params
-                    .iter()
-                    .map(|param| format!("{}:", param.ident))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            );
-
-            def.push(')');
-        }
-
-        scope.block_with_end(def, |scope| {
-            if let Some(exprs) = &self.body {
-                for expr in exprs {
-                    expr.write_ruby(scope);
-                    scope.newline();
-                }
-            }
-        });
-
-        if self.name.as_str() == "main" {
-            scope.newline();
-            scope.line("main");
-        }
     }
 }
 
