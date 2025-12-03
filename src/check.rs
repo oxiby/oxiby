@@ -6,7 +6,7 @@ use std::fmt::Display;
 use chumsky::error::Rich;
 use chumsky::span::SimpleSpan;
 
-use crate::expr::Expr;
+use crate::expr::{Expr, ExprCall};
 use crate::item::{Item, ItemFn};
 
 pub type Error = Rich<'static, String>;
@@ -232,53 +232,58 @@ impl Checker {
                     context.push(param.ident.to_string(), param.ty.clone().into());
                 }
 
-                Self::check_fn(&item_fn, &context)?;
+                Self::check_item_fn(&item_fn, &context)?;
             }
         }
 
         Ok(())
     }
 
-    fn check_fn(item_fn: &ItemFn<'_>, context: &Context) -> Result<(), Error> {
+    fn check_item_fn(item_fn: &ItemFn<'_>, context: &Context) -> Result<(), Error> {
         for expr in &item_fn.body {
             match &expr {
-                Expr::Call(expr_call) => {
-                    let name = expr_call.name.as_str();
-
-                    match context.find(name, expr.span())? {
-                        Type::Fn(func) => {
-                            for (ty, expr) in func
-                                .positional_params
-                                .iter()
-                                .zip(expr_call.positional_args.iter())
-                            {
-                                let expr_ty = Self::infer_expr_type(expr, context)?;
-
-                                if *ty != expr_ty {
-                                    return Err(Rich::custom(
-                                        expr.span(),
-                                        format!(
-                                            "Argument was expected to be `{ty}` but was \
-                                             `{expr_ty}`",
-                                        ),
-                                    ));
-                                }
-                            }
-                        }
-                        _ => {
-                            return Err(Rich::custom(
-                                expr.span(),
-                                format!("Value `{name}` is not callable"),
-                            ));
-                        }
-                    }
-                }
+                Expr::Call(expr_call) => Self::check_expr_call(expr_call, context, expr.span())?,
                 Expr::ExprIdent(expr_ident) => {
                     let name = expr_ident.as_str();
 
                     context.find(name, expr.span())?;
                 }
                 _ => todo!("Not all expressions can be type checked yet"),
+            }
+        }
+
+        Ok(())
+    }
+
+    fn check_expr_call(
+        expr_call: &ExprCall<'_>,
+        context: &Context,
+        span: SimpleSpan,
+    ) -> Result<(), Error> {
+        let name = expr_call.name.as_str();
+
+        match context.find(name, span)? {
+            Type::Fn(func) => {
+                for (ty, expr) in func
+                    .positional_params
+                    .iter()
+                    .zip(expr_call.positional_args.iter())
+                {
+                    let expr_ty = Self::infer_expr_type(expr, context)?;
+
+                    if *ty != expr_ty {
+                        return Err(Rich::custom(
+                            span,
+                            format!("Argument was expected to be `{ty}` but was `{expr_ty}`",),
+                        ));
+                    }
+                }
+            }
+            _ => {
+                return Err(Rich::custom(
+                    span,
+                    format!("Value `{name}` is not callable"),
+                ));
             }
         }
 
