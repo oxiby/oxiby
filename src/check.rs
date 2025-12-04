@@ -3,15 +3,13 @@
 use std::collections::HashMap;
 use std::fmt::Display;
 
-use chumsky::error::Rich;
 use chumsky::span::SimpleSpan;
 
 use crate::ast::Operator;
+use crate::error::Error;
 use crate::expr::{Expr, ExprBinary, ExprCall, ExprConditional, ExprLet};
 use crate::item::{Item, ItemFn};
 use crate::pattern::Pattern;
-
-pub type Error = Rich<'static, String>;
 
 #[derive(Debug, Clone)]
 pub struct Context(Vec<Entry>);
@@ -26,8 +24,9 @@ impl Context {
     }
 
     fn find(&self, name: &str, span: SimpleSpan) -> Result<Type, Error> {
-        self.get(name)
-            .ok_or_else(|| Rich::custom(span, format!("Cannot find value `{name}` in this scope")))
+        self.get(name).ok_or_else(|| {
+            Error::spanned_message(&format!("Cannot find value `{name}` in this scope"), span)
+        })
     }
 
     fn push<S>(&mut self, name: S, ty: Type)
@@ -204,9 +203,9 @@ impl Checker {
                 let name = item_fn.signature.name.to_string();
 
                 if name == "main" && !(pos.is_empty() && kw.is_empty() && ret.is_unit()) {
-                    return Err(Rich::custom(
+                    return Err(Error::spanned_message(
+                        &"The `main` function cannot have parameters and must return ()",
                         item_fn.span,
-                        "The `main` function cannot have parameters and must return ()".to_owned(),
                     ));
                 }
 
@@ -312,9 +311,9 @@ impl Checker {
             .map_or_else(Type::unit, Into::into);
 
         if inferred != declared {
-            return Err(Error::custom(
+            return Err(Error::spanned_message(
+                &format!("Type error: `{declared}` declared but `{inferred}` inferred"),
                 item_fn.span,
-                format!("Type error: `{declared}` declared but `{inferred}` inferred"),
             ));
         }
 
@@ -339,17 +338,17 @@ impl Checker {
                     let expr_ty = self.infer_expr_type(expr, context)?;
 
                     if *ty != expr_ty {
-                        return Err(Rich::custom(
+                        return Err(Error::spanned_message(
+                            &format!("Argument was expected to be `{ty}` but was `{expr_ty}`",),
                             span,
-                            format!("Argument was expected to be `{ty}` but was `{expr_ty}`",),
                         ));
                     }
                 }
             }
             _ => {
-                return Err(Rich::custom(
+                return Err(Error::spanned_message(
+                    &format!("Value `{name}` is not callable"),
                     span,
-                    format!("Value `{name}` is not callable"),
                 ));
             }
         }
@@ -391,9 +390,9 @@ impl Checker {
                 .get("Boolean")
                 .expect("`Boolean` should be known")
         {
-            return Err(Rich::custom(
+            return Err(Error::spanned_message(
+                &format!("Condition was expected to be `Boolean` but was `{condition_type}`",),
                 expr_conditional.condition.span(),
-                format!("Condition was expected to be `Boolean` but was `{condition_type}`",),
             ));
         }
 
@@ -415,12 +414,12 @@ impl Checker {
             Expr::Call(expr_call) => match context.find(expr_call.name.as_str(), expr.span())? {
                 Type::Fn(func) => *func.return_type,
                 ty => {
-                    return Err(Rich::custom(
-                        expr.span(),
-                        format!(
+                    return Err(Error::spanned_message(
+                        &format!(
                             "`{}` is of type `{ty}` which is not callable",
                             expr_call.name.as_str()
                         ),
+                        expr.span(),
                     ));
                 }
             },

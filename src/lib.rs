@@ -8,6 +8,7 @@ mod ast;
 mod check;
 mod cli;
 mod compiler;
+mod error;
 mod expr;
 mod import;
 mod item;
@@ -17,7 +18,7 @@ mod token;
 mod types;
 
 pub use ast::{make_input, parser};
-pub use cli::{Error as CliError, report_errors, run};
+pub use cli::{CliError, report_errors, run};
 pub use compiler::{compile_module, compile_std, compile_str};
 pub use token::{Token, lexer};
 

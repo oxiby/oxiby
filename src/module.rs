@@ -2,39 +2,24 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use chumsky::Parser;
-use chumsky::error::Rich;
 
 use crate::check::Checker;
+use crate::error::Error;
 use crate::import::OxibyModulePath;
 use crate::item::Item;
 
-pub enum Error {
-    Program(String, Vec<Rich<'static, String>>),
-    Message(String),
-}
-
-pub fn module_tokens(file_path: &Path) -> Result<String, Error> {
-    let source = read_file(file_path)?;
-
-    let (tokens, lex_errors) = crate::lexer().parse(&source).into_output_errors();
+pub fn module_tokens(source: &str) -> Result<String, Vec<Error>> {
+    let (tokens, lex_errors) = crate::lexer().parse(source).into_output_errors();
 
     if let Some(tokens) = tokens {
         Ok(format!("{tokens:#?}"))
     } else {
-        Err(Error::Program(
-            source.clone(),
-            lex_errors
-                .into_iter()
-                .map(|error| error.map_token(|token| token.to_string()).into_owned())
-                .collect(),
-        ))
+        Err(lex_errors.into_iter().map(From::from).collect())
     }
 }
 
-pub fn module_ast(file_path: &Path) -> Result<String, Error> {
-    let source = read_file(file_path)?;
-
-    let (tokens, lex_errors) = crate::lexer().parse(&source).into_output_errors();
+pub fn module_ast(source: &str) -> Result<String, Vec<Error>> {
+    let (tokens, lex_errors) = crate::lexer().parse(source).into_output_errors();
 
     let parse_errors = if let Some(tokens) = &tokens {
         let (items, parse_errors) = crate::parser(crate::make_input)
@@ -50,26 +35,20 @@ pub fn module_ast(file_path: &Path) -> Result<String, Error> {
         Vec::new()
     };
 
-    Err(Error::Program(
-        source.clone(),
-        lex_errors
-            .into_iter()
-            .map(|error| error.map_token(|token| token.to_string()).into_owned())
-            .chain(
-                parse_errors
-                    .into_iter()
-                    .map(|error| error.map_token(|token| token.to_string()).into_owned()),
-            )
-            .collect(),
-    ))
+    Err(lex_errors
+        .into_iter()
+        .map(From::from)
+        .chain(parse_errors.into_iter().map(From::from))
+        .collect())
 }
 
 pub fn module_program(
     input_file: &Path,
     input_file_parent: Option<&Path>,
+    source: &str,
     mut compiled_modules: HashMap<PathBuf, String>,
     is_entry: bool,
-) -> Result<HashMap<PathBuf, String>, Error> {
+) -> Result<HashMap<PathBuf, String>, Vec<Error>> {
     let oxiby_module_path: OxibyModulePath = input_file_parent
         .map_or(input_file, |parent| {
             input_file
@@ -77,11 +56,9 @@ pub fn module_program(
                 .expect("parent was extracted from the entry file so it should match")
         })
         .try_into()
-        .map_err(Error::Message)?;
+        .map_err(|error| vec![Error::message(&error)])?;
 
-    let source = read_file(input_file)?;
-
-    let (tokens, lex_errors) = crate::lexer().parse(&source).into_output_errors();
+    let (tokens, lex_errors) = crate::lexer().parse(source).into_output_errors();
 
     let parse_errors = if let Some(tokens) = &tokens {
         let (items, parse_errors) = crate::parser(crate::make_input)
@@ -97,6 +74,7 @@ pub fn module_program(
                     compiled_modules = module_program(
                         &item_use.file_path(input_file_parent),
                         input_file_parent,
+                        source,
                         compiled_modules,
                         false,
                     )?;
@@ -118,24 +96,15 @@ pub fn module_program(
         Vec::new()
     };
 
-    Err(Error::Program(
-        source.clone(),
-        lex_errors
-            .into_iter()
-            .map(|error| error.map_token(|token| token.to_string()).into_owned())
-            .chain(
-                parse_errors
-                    .into_iter()
-                    .map(|error| error.map_token(|token| token.to_string()).into_owned()),
-            )
-            .collect(),
-    ))
+    Err(lex_errors
+        .into_iter()
+        .map(From::from)
+        .chain(parse_errors.into_iter().map(From::from))
+        .collect())
 }
 
-pub fn module_check(input_file: &Path) -> Result<(), Error> {
-    let source = read_file(input_file)?;
-
-    let (tokens, lex_errors) = crate::lexer().parse(&source).into_output_errors();
+pub fn module_check(source: &str) -> Result<(), Vec<Error>> {
+    let (tokens, lex_errors) = crate::lexer().parse(source).into_output_errors();
 
     let parse_errors = if let Some(tokens) = &tokens {
         let (items, parse_errors) = crate::parser(crate::make_input)
@@ -145,11 +114,11 @@ pub fn module_check(input_file: &Path) -> Result<(), Error> {
         if let Some(items) = items {
             let mut checker = Checker::new();
 
-            let result = checker.infer(items);
+            let result = checker.infer(items).map_err(|error| vec![error]);
 
             dbg!(&checker);
 
-            result.map_err(|error| Error::Program(source.clone(), vec![error]))?;
+            return result;
         }
 
         parse_errors
@@ -161,21 +130,9 @@ pub fn module_check(input_file: &Path) -> Result<(), Error> {
         return Ok(());
     }
 
-    Err(Error::Program(
-        source.clone(),
-        lex_errors
-            .into_iter()
-            .map(|error| error.map_token(|token| token.to_string()).into_owned())
-            .chain(
-                parse_errors
-                    .into_iter()
-                    .map(|error| error.map_token(|token| token.to_string()).into_owned()),
-            )
-            .collect(),
-    ))
-}
-
-fn read_file(file_path: &Path) -> Result<String, Error> {
-    std::fs::read_to_string(file_path)
-        .map_err(|_| Error::Message(format!("Failed to read path: {}", file_path.display())))
+    Err(lex_errors
+        .into_iter()
+        .map(From::from)
+        .chain(parse_errors.into_iter().map(From::from))
+        .collect())
 }

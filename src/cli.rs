@@ -3,27 +3,23 @@ use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
 use ariadne::{Color, Label, Report, ReportKind, sources};
-use chumsky::error::Rich;
-use chumsky::span::SimpleSpan;
 use clap::builder::PathBufValueParser;
 use clap::{Arg, ArgAction, Command};
 
-use crate::module::{
-    Error as ModuleError,
-    module_ast,
-    module_check,
-    module_program,
-    module_tokens,
-};
+use crate::error::Error;
+use crate::module::{module_ast, module_check, module_program, module_tokens};
 
-pub enum Error {
+pub enum CliError {
     Message(String),
-    Rich(String, String, Vec<Rich<'static, String, SimpleSpan>>),
+    Source(String, String, Vec<Error>),
 }
 
-impl From<String> for Error {
-    fn from(value: String) -> Self {
-        Self::Message(value)
+impl CliError {
+    fn message<M>(message: &M) -> Self
+    where
+        M: ToString + ?Sized,
+    {
+        Self::Message(message.to_string())
     }
 }
 
@@ -47,17 +43,17 @@ impl Build {
         self.entry_file.parent()
     }
 
-    fn create_build_dir(&self) -> Result<(), String> {
+    fn create_build_dir(&self) -> Result<(), CliError> {
         if self.output_dir.exists() {
             if !self.output_dir.is_dir() {
-                return Err("Output path must be a directory.".to_string());
+                return Err(CliError::message("Output path must be a directory."));
             }
         } else {
             std::fs::create_dir(&self.output_dir).map_err(|_| {
-                format!(
+                CliError::message(&format!(
                     "Failed to create output directory: {}",
                     self.output_dir.display()
-                )
+                ))
             })?;
         }
 
@@ -80,7 +76,7 @@ impl Build {
     }
 }
 
-pub fn run() -> Result<(), Error> {
+pub fn run() -> Result<(), CliError> {
     let matches = app().get_matches();
 
     match matches.subcommand() {
@@ -90,7 +86,7 @@ pub fn run() -> Result<(), Error> {
                 no_std: false,
                 entry_file: sub_matches
                     .get_one::<PathBuf>("input")
-                    .ok_or_else(|| Error::Message("Couldn't determine input path.".to_string()))?
+                    .ok_or_else(|| CliError::message("Couldn't determine input path."))?
                     .clone(),
                 output_dir: "TODO: Maybe a `Check` type for when `output_dir` isn't needed?".into(),
             })?;
@@ -101,11 +97,11 @@ pub fn run() -> Result<(), Error> {
                 no_std: sub_matches.get_flag("no_std"),
                 entry_file: sub_matches
                     .get_one::<PathBuf>("input")
-                    .ok_or_else(|| Error::Message("Couldn't determine input path.".to_string()))?
+                    .ok_or_else(|| CliError::message("Couldn't determine input path."))?
                     .clone(),
                 output_dir: sub_matches
                     .get_one::<PathBuf>("output")
-                    .ok_or_else(|| Error::Message("Couldn't determine output path.".to_string()))?
+                    .ok_or_else(|| CliError::message("Couldn't determine output path."))?
                     .clone(),
             })?;
         }
@@ -115,11 +111,11 @@ pub fn run() -> Result<(), Error> {
                 no_std: sub_matches.get_flag("no_std"),
                 entry_file: sub_matches
                     .get_one::<PathBuf>("input")
-                    .ok_or_else(|| Error::Message("Couldn't determine input path.".to_string()))?
+                    .ok_or_else(|| CliError::message("Couldn't determine input path."))?
                     .clone(),
                 output_dir: sub_matches
                     .get_one::<PathBuf>("output")
-                    .ok_or_else(|| Error::Message("Couldn't determine output path.".to_string()))?
+                    .ok_or_else(|| CliError::message("Couldn't determine output path."))?
                     .clone(),
             })?;
         }
@@ -127,7 +123,7 @@ pub fn run() -> Result<(), Error> {
             run_clean(
                 sub_matches
                     .get_one::<PathBuf>("output")
-                    .ok_or_else(|| Error::Message("Couldn't determine output path.".to_string()))?
+                    .ok_or_else(|| CliError::message("Couldn't determine output path."))?
                     .clone(),
             )?;
         }
@@ -135,7 +131,7 @@ pub fn run() -> Result<(), Error> {
             run_new(
                 sub_matches
                     .get_one::<PathBuf>("path")
-                    .ok_or_else(|| Error::Message("Couldn't determine output path.".to_string()))?
+                    .ok_or_else(|| CliError::message("Couldn't determine output path."))?
                     .clone(),
             )?;
         }
@@ -145,7 +141,7 @@ pub fn run() -> Result<(), Error> {
                 no_std: true,
                 entry_file: sub_matches
                     .get_one::<PathBuf>("input")
-                    .ok_or_else(|| Error::Message("Couldn't determine input path.".to_string()))?
+                    .ok_or_else(|| CliError::message("Couldn't determine input path."))?
                     .clone(),
                 output_dir: PathBuf::new(),
             })?;
@@ -156,7 +152,7 @@ pub fn run() -> Result<(), Error> {
                 no_std: true,
                 entry_file: sub_matches
                     .get_one::<PathBuf>("input")
-                    .ok_or_else(|| Error::Message("Couldn't determine input path.".to_string()))?
+                    .ok_or_else(|| CliError::message("Couldn't determine input path."))?
                     .clone(),
                 output_dir: PathBuf::new(),
             })?;
@@ -170,26 +166,31 @@ pub fn run() -> Result<(), Error> {
 pub fn report_errors(
     file_name: &str,
     source: &str,
-    errors: Vec<Rich<'static, String, SimpleSpan>>,
+    errors: Vec<Error>,
 ) -> Result<(), std::io::Error> {
     for error in errors {
-        Report::build(
+        let mut report = Report::build(
             ReportKind::Error,
-            (file_name.to_string(), error.span().into_range()),
+            (file_name.to_string(), error.span.into_range()),
         )
-        .with_message(error.to_string())
-        .with_label(
-            Label::new((file_name.to_string(), error.span().into_range()))
-                .with_message(error.reason().to_string())
-                .with_color(Color::Red),
-        )
-        .with_labels(error.contexts().map(|(label, span)| {
-            Label::new((file_name.to_string(), span.into_range()))
-                .with_message(format!("while parsing this {label}"))
-                .with_color(Color::Yellow)
-        }))
-        .finish()
-        .eprint(sources([(file_name.to_string(), source.to_string())]))?;
+        .with_message(error.message);
+
+        if let Some(detail) = error.detail {
+            report = report.with_label(
+                Label::new((file_name.to_string(), error.span.into_range()))
+                    .with_message(detail)
+                    .with_color(Color::Red),
+            );
+        }
+
+        report
+            .with_labels(error.contexts.into_iter().map(|error_context| {
+                Label::new((file_name.to_string(), error_context.span.into_range()))
+                    .with_message(error_context.message)
+                    .with_color(Color::Yellow)
+            }))
+            .finish()
+            .eprint(sources([(file_name.to_string(), source.to_string())]))?;
     }
 
     Ok(())
@@ -294,31 +295,29 @@ fn arg_output() -> Arg {
         .default_value("build")
 }
 
-fn run_check(build: &Build) -> Result<(), Error> {
-    if let Err(error) = module_check(&build.entry_file) {
-        match error {
-            ModuleError::Program(source, errors) => {
-                return Err(Error::Rich(build.entry_file_string(), source, errors));
-            }
-            ModuleError::Message(error) => return Err(Error::Message(error)),
-        }
-    }
+fn run_check(build: &Build) -> Result<(), CliError> {
+    let source = read_file(&build.entry_file)?;
 
-    Ok(())
+    module_check(&source)
+        .map_err(|errors| CliError::Source(build.entry_file_string(), source, errors))
 }
 
-fn run_build(build: &Build) -> Result<(), Error> {
+fn run_build(build: &Build) -> Result<(), CliError> {
     build.create_build_dir()?;
 
     if !build.no_std {
-        crate::compile_std(&build.output_dir).map_err(|errs| errs.join(", "))?;
+        crate::compile_std(&build.output_dir)
+            .map_err(|errs| CliError::message(&errs.join(", ")))?;
     }
 
     let compiled_modules = HashMap::new();
 
+    let source = read_file(&build.entry_file)?;
+
     match module_program(
         &build.entry_file,
         build.entry_file.parent(),
+        &source,
         compiled_modules,
         true,
     ) {
@@ -330,70 +329,66 @@ fn run_build(build: &Build) -> Result<(), Error> {
                     let output_file = build.output_file(&input_path);
 
                     if let Some(parent) = output_file.parent() {
-                        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+                        std::fs::create_dir_all(parent)
+                            .map_err(|error| CliError::message(&error))?;
                     }
 
                     std::fs::write(&output_file, output.strip_suffix('\n').unwrap_or(&output))
                         .map_err(|error| {
-                            format!(
+                            CliError::message(&format!(
                                 "trying to write module to {}: {}",
                                 output_file.display(),
                                 error,
-                            )
+                            ))
                         })?;
                 }
             }
         }
-        Err(error) => match error {
-            ModuleError::Program(source, errors) => {
-                return Err(Error::Rich(build.entry_file_string(), source, errors));
-            }
-
-            ModuleError::Message(error) => return Err(Error::Message(error)),
-        },
+        Err(errors) => return Err(CliError::Source(build.entry_file_string(), source, errors)),
     }
 
     Ok(())
 }
 
-fn run_run(build: &Build) -> Result<(), Error> {
+fn run_run(build: &Build) -> Result<(), CliError> {
     run_build(build)?;
 
     let mut child = ProcessCommand::new("ruby")
         .arg(build.output_file(&build.entry_file))
         .spawn()
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| CliError::message(&error))?;
 
-    child.wait().map_err(|error| error.to_string())?;
+    child.wait().map_err(|error| CliError::message(&error))?;
 
     Ok(())
 }
 
-fn run_clean(output: PathBuf) -> Result<(), String> {
+fn run_clean(output: PathBuf) -> Result<(), CliError> {
     if output.exists() {
-        std::fs::remove_dir_all(output).map_err(|error| error.to_string())
+        std::fs::remove_dir_all(output).map_err(|error| CliError::message(&error))
     } else {
         Ok(())
     }
 }
 
-fn run_new(mut path: PathBuf) -> Result<(), String> {
+fn run_new(mut path: PathBuf) -> Result<(), CliError> {
     let base_path = path.clone();
 
     if base_path.exists() {
-        return Err(format!(
+        return Err(CliError::message(&format!(
             "Destination `{}` already exists.",
             base_path.display()
-        ));
+        )));
     }
 
     path.push("src");
 
-    std::fs::create_dir_all(&path).map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(&path).map_err(|error| CliError::message(&error))?;
 
     path.push("main.ob");
 
-    std::fs::write(&path, "fn main() {\n}".as_bytes()).map_err(|error| error.to_string())?;
+    std::fs::write(&path, "fn main() {\n}".as_bytes())
+        .map_err(|error| CliError::message(&error))?;
 
     println!(
         "New Oxiby project created at path `{}`.",
@@ -403,32 +398,31 @@ fn run_new(mut path: PathBuf) -> Result<(), String> {
     Ok(())
 }
 
-fn run_lex(build: &Build) -> Result<(), Error> {
-    match module_tokens(&build.entry_file) {
-        Ok(output) => println!("{}", output.trim_end()),
-        Err(error) => match error {
-            ModuleError::Program(source, errors) => {
-                return Err(Error::Rich(build.entry_file_string(), source, errors));
-            }
-            ModuleError::Message(error) => return Err(Error::Message(error)),
-        },
-    }
+fn run_lex(build: &Build) -> Result<(), CliError> {
+    let source = read_file(&build.entry_file)?;
+
+    let tokens = module_tokens(&source)
+        .map_err(|errors| CliError::Source(build.entry_file_string(), source, errors))?;
+
+    println!("{}", tokens.trim_end());
 
     Ok(())
 }
 
-fn run_parse(build: &Build) -> Result<(), Error> {
-    match module_ast(&build.entry_file) {
-        Ok(output) => println!("{}", output.trim_end()),
-        Err(error) => match error {
-            ModuleError::Program(source, errors) => {
-                return Err(Error::Rich(build.entry_file_string(), source, errors));
-            }
-            ModuleError::Message(error) => return Err(Error::Message(error)),
-        },
-    }
+fn run_parse(build: &Build) -> Result<(), CliError> {
+    let source = read_file(&build.entry_file)?;
+
+    let ast = module_ast(&source)
+        .map_err(|errors| CliError::Source(build.entry_file_string(), source, errors))?;
+
+    println!("{}", ast.trim_end());
 
     Ok(())
+}
+
+fn read_file(file_path: &Path) -> Result<String, CliError> {
+    std::fs::read_to_string(file_path)
+        .map_err(|_| CliError::Message(format!("Failed to read path: {}", file_path.display())))
 }
 
 #[cfg(test)]
