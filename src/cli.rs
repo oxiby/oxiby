@@ -280,10 +280,10 @@ fn arg_no_std() -> Arg {
 
 fn arg_input() -> Arg {
     Arg::new("input")
-        .required(true)
         .value_name("INPUT")
         .help("Path to an Oxiby source file")
         .value_parser(PathBufValueParser::new())
+        .default_value("src/main.ob")
 }
 
 fn arg_output() -> Arg {
