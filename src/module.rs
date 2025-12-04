@@ -103,7 +103,7 @@ pub fn module_program(
         .collect())
 }
 
-pub fn module_check(source: &str) -> Result<(), Vec<Error>> {
+pub fn module_check(source: &str, debug: bool) -> Result<(), Vec<Error>> {
     let (tokens, lex_errors) = crate::lexer().parse(source).into_output_errors();
 
     let parse_errors = if let Some(tokens) = &tokens {
@@ -116,7 +116,9 @@ pub fn module_check(source: &str) -> Result<(), Vec<Error>> {
 
             let result = checker.infer(items).map_err(|error| vec![error]);
 
-            dbg!(&checker);
+            if debug {
+                dbg!(&checker);
+            }
 
             return result;
         }

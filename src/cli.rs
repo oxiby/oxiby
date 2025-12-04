@@ -76,19 +76,28 @@ impl Build {
     }
 }
 
+struct Check {
+    entry_file: PathBuf,
+    debug: bool,
+}
+
+impl Check {
+    fn entry_file_string(&self) -> String {
+        self.entry_file.to_string_lossy().into_owned()
+    }
+}
+
 pub fn run() -> Result<(), CliError> {
     let matches = app().get_matches();
 
     match matches.subcommand() {
         Some(("check", sub_matches)) => {
-            run_check(&Build {
-                stdout: true,
-                no_std: false,
+            run_check(&Check {
                 entry_file: sub_matches
                     .get_one::<PathBuf>("input")
                     .ok_or_else(|| CliError::message("Couldn't determine input path."))?
                     .clone(),
-                output_dir: "TODO: Maybe a `Check` type for when `output_dir` isn't needed?".into(),
+                debug: sub_matches.get_flag("debug"),
             })?;
         }
         Some(("build", sub_matches)) => {
@@ -216,6 +225,13 @@ fn app() -> Command {
 fn command_check() -> Command {
     Command::new("check")
         .about("Type checks an Oxiby program")
+        .arg(
+            Arg::new("debug")
+                .short('d')
+                .long("debug")
+                .action(ArgAction::SetTrue)
+                .help("Print the state of the type checker")
+        )
         .arg(arg_input())
 }
 
@@ -295,11 +311,11 @@ fn arg_output() -> Arg {
         .default_value("build")
 }
 
-fn run_check(build: &Build) -> Result<(), CliError> {
-    let source = read_file(&build.entry_file)?;
+fn run_check(check: &Check) -> Result<(), CliError> {
+    let source = read_file(&check.entry_file)?;
 
-    module_check(&source)
-        .map_err(|errors| CliError::Source(build.entry_file_string(), source, errors))
+    module_check(&source, check.debug)
+        .map_err(|errors| CliError::Source(check.entry_file_string(), source, errors))
 }
 
 fn run_build(build: &Build) -> Result<(), CliError> {
