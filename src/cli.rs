@@ -131,6 +131,14 @@ pub fn run() -> Result<(), Error> {
                     .clone(),
             )?;
         }
+        Some(("new", sub_matches)) => {
+            run_new(
+                sub_matches
+                    .get_one::<PathBuf>("path")
+                    .ok_or_else(|| Error::Message("Couldn't determine output path.".to_string()))?
+                    .clone(),
+            )?;
+        }
         Some(("lex", sub_matches)) => {
             run_lex(&Build {
                 stdout: true,
@@ -199,6 +207,7 @@ fn app() -> Command {
         .subcommand(command_build())
         .subcommand(command_run())
         .subcommand(command_clean())
+        .subcommand(command_new())
         .subcommand(command_lex())
         .subcommand(command_parse())
 }
@@ -236,6 +245,18 @@ fn command_clean() -> Command {
     Command::new("clean")
         .about("Removes the output directory and its contents")
         .arg(arg_output())
+}
+
+fn command_new() -> Command {
+    Command::new("new")
+        .about("Creates a new Oxiby project")
+        .arg(
+            Arg::new("path")
+                .required(true)
+                .value_name("PATH")
+                .help("Path where the new project should be created")
+                .value_parser(PathBufValueParser::new()),
+        )
 }
 
 fn command_lex() -> Command {
@@ -354,6 +375,32 @@ fn run_clean(output: PathBuf) -> Result<(), String> {
     } else {
         Ok(())
     }
+}
+
+fn run_new(mut path: PathBuf) -> Result<(), String> {
+    let base_path = path.clone();
+
+    if base_path.exists() {
+        return Err(format!(
+            "Destination `{}` already exists.",
+            base_path.display()
+        ));
+    }
+
+    path.push("src");
+
+    std::fs::create_dir_all(&path).map_err(|error| error.to_string())?;
+
+    path.push("main.ob");
+
+    std::fs::write(&path, "fn main() {\n}".as_bytes()).map_err(|error| error.to_string())?;
+
+    println!(
+        "New Oxiby project created at path `{}`.",
+        base_path.display()
+    );
+
+    Ok(())
 }
 
 fn run_lex(build: &Build) -> Result<(), Error> {
