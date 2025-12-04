@@ -128,6 +128,7 @@ pub struct Signature<'a> {
     pub(crate) keyword_params: Vec<FnParam<'a>>,
     pub(crate) return_ty: Option<Type<'a>>,
     pub(crate) constraints: Option<Vec<Constraint<'a>>>,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> Signature<'a> {
@@ -199,6 +200,7 @@ impl<'a> Signature<'a> {
                         keyword_params,
                         return_ty,
                         constraints,
+                        span,
                     })
                 },
             )
@@ -211,6 +213,7 @@ impl<'a> Signature<'a> {
 pub struct FnParam<'a> {
     pub(crate) ident: ExprIdent<'a>,
     pub(crate) ty: Type<'a>,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> FnParam<'a> {
@@ -222,7 +225,11 @@ impl<'a> FnParam<'a> {
         ExprIdent::parser()
             .then_ignore(just(Token::Colon))
             .then(Type::parser())
-            .map(|(ident, ty)| Self { ident, ty })
+            .map_with(|(ident, ty), extra| Self {
+                ident,
+                ty,
+                span: extra.span(),
+            })
             .labelled("positional function parameter")
             .as_context()
     }

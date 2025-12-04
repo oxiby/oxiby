@@ -178,10 +178,11 @@ impl<'a> Type<'a> {
                             .or_not(),
                     ),
                 )
-                .map(|(qual, (ident, params))| ConcreteType {
+                .map_with(|(qual, (ident, params)), extra| ConcreteType {
                     qual,
                     ident,
                     params,
+                    span: extra.span(),
                 })
                 .labelled("concrete type")
                 .boxed(),
@@ -230,6 +231,32 @@ impl<'a> Type<'a> {
 
         type_parser.labelled("type").boxed()
     }
+
+    pub fn span(&self) -> Option<SimpleSpan> {
+        match self {
+            Self::Concrete(concrete_type) => Some(concrete_type.span),
+            Self::Variable(expr_ident) => Some(expr_ident.span),
+            Self::Tuple(types) => types
+                .iter()
+                .filter_map(Type::span)
+                .reduce(|merged, span| merged.union(span)),
+            Self::Fn(maybe_param_types, maybe_return_ty) => {
+                maybe_param_types.as_ref().and_then(|param_types| {
+                    param_types
+                        .iter()
+                        .filter_map(Type::span)
+                        .reduce(|merged, span| merged.union(span))
+                        .and_then(|params_span| {
+                            maybe_return_ty.as_ref().and_then(|return_ty| {
+                                return_ty
+                                    .span()
+                                    .map(|return_span| params_span.union(return_span))
+                            })
+                        })
+                })
+            }
+        }
+    }
 }
 
 impl Display for Type<'_> {
@@ -257,6 +284,7 @@ pub struct ConcreteType<'a> {
     pub(crate) qual: Option<TypeIdent<'a>>,
     pub(crate) ident: TypeIdent<'a>,
     pub(crate) params: Option<Vec<Type<'a>>>,
+    span: SimpleSpan,
 }
 
 impl Display for ConcreteType<'_> {

@@ -3,7 +3,8 @@
 use std::collections::HashMap;
 use std::fmt::Display;
 
-use chumsky::span::SimpleSpan;
+use chumsky::span::{SimpleSpan, Span};
+use itertools::{EitherOrBoth, Itertools};
 
 use crate::ast::Operator;
 use crate::error::Error;
@@ -25,7 +26,12 @@ impl Context {
 
     fn find(&self, name: &str, span: SimpleSpan) -> Result<Type, Error> {
         self.get(name).ok_or_else(|| {
-            Error::spanned_message(&format!("Cannot find value `{name}` in this scope"), span)
+            Error::build("Unknown binding")
+                .detail(
+                    &format!("Cannot find binding `{name}` in this scope."),
+                    span,
+                )
+                .finish()
         })
     }
 
@@ -203,10 +209,61 @@ impl Checker {
                 let name = item_fn.signature.name.to_string();
 
                 if name == "main" && !(pos.is_empty() && kw.is_empty() && ret.is_unit()) {
-                    return Err(Error::spanned_message(
-                        &"The `main` function cannot have parameters and must return ()",
-                        item_fn.span,
-                    ));
+                    let mut error = Error::build("Invalid signature for `main`")
+                        .detail(
+                            "The `main` function cannot have input or output.",
+                            item_fn.signature.span,
+                        )
+                        .into_contextual();
+
+                    if !pos.is_empty() {
+                        error = error.with_context(
+                            if pos.len() == 1 {
+                                "This positional parameter is not allowed."
+                            } else {
+                                "These positional parameters are not allowed."
+                            },
+                            item_fn
+                                .signature
+                                .positional_params
+                                .iter()
+                                .map(|fn_param| fn_param.span)
+                                .reduce(|merged, span| merged.union(span))
+                                .expect("should be called on non-empty positional params"),
+                        );
+                    }
+
+                    if !kw.is_empty() {
+                        error = error.with_context(
+                            if kw.len() == 1 {
+                                "This keyword parameter is not allowed."
+                            } else {
+                                "These keyword parameters are not allowed."
+                            },
+                            item_fn
+                                .signature
+                                .keyword_params
+                                .iter()
+                                .map(|fn_param| fn_param.span)
+                                .reduce(|merged, span| merged.union(span))
+                                .expect("should be called on non-empty keyword params"),
+                        );
+                    }
+
+                    if !ret.is_unit() {
+                        error = error.with_context(
+                            "Must be `()` or explicit return type must be omitted.",
+                            item_fn
+                                .signature
+                                .return_ty
+                                .as_ref()
+                                .expect("should be called on a non-unit type")
+                                .span()
+                                .expect("should be called on a non-unit type"),
+                        );
+                    }
+
+                    return Err(error.finish());
                 }
 
                 self.functions
@@ -311,10 +368,21 @@ impl Checker {
             .map_or_else(Type::unit, Into::into);
 
         if inferred != declared {
-            return Err(Error::spanned_message(
-                &format!("Type error: `{declared}` declared but `{inferred}` inferred"),
-                item_fn.span,
-            ));
+            return Err(Error::type_mismatch()
+                .detail(
+                    &format!(
+                        "Return type is declared as `{declared}` but the inferred type is \
+                         `{inferred}`."
+                    ),
+                    item_fn
+                        .signature
+                        .return_ty
+                        .as_ref()
+                        .map_or(item_fn.signature.span, |ty| {
+                            ty.span().unwrap_or(item_fn.signature.span)
+                        }),
+                )
+                .finish());
         }
 
         Ok(())
@@ -330,26 +398,63 @@ impl Checker {
 
         match context.find(name, span)? {
             Type::Fn(func) => {
-                for (ty, expr) in func
+                for pair in func
                     .positional_params
                     .iter()
-                    .zip(expr_call.positional_args.iter())
+                    .zip_longest(expr_call.positional_args.iter())
                 {
-                    let expr_ty = self.infer_expr_type(expr, context)?;
+                    match pair {
+                        EitherOrBoth::Both(ty, expr) => {
+                            let expr_ty = self.infer_expr_type(expr, context)?;
 
-                    if *ty != expr_ty {
-                        return Err(Error::spanned_message(
-                            &format!("Argument was expected to be `{ty}` but was `{expr_ty}`",),
-                            span,
-                        ));
+                            if *ty != expr_ty {
+                                return Err(Error::type_mismatch()
+                                    .detail(
+                                        &format!(
+                                            "Argument was expected to be `{ty}` but was \
+                                             `{expr_ty}`."
+                                        ),
+                                        expr.span(),
+                                    )
+                                    .finish());
+                            }
+                        }
+                        EitherOrBoth::Left(ty) => {
+                            return Err(Error::build("Missing argument")
+                                .detail(
+                                    &format!(
+                                        "Function expects argument of type `{ty}` but it was not \
+                                         given."
+                                    ),
+                                    span,
+                                )
+                                .finish());
+                        }
+                        EitherOrBoth::Right(expr) => {
+                            let expr_ty = self.infer_expr_type(expr, context)?;
+
+                            return Err(Error::build("Extra argument")
+                                .detail(
+                                    &format!(
+                                        "Argument of type `{expr_ty}` is not expected by function \
+                                         `{name}`."
+                                    ),
+                                    expr.span(),
+                                )
+                                .finish());
+                        }
                     }
                 }
             }
-            _ => {
-                return Err(Error::spanned_message(
-                    &format!("Value `{name}` is not callable"),
-                    span,
-                ));
+            ty => {
+                return Err(Error::type_mismatch()
+                    .detail(
+                        &format!(
+                            "Value `{name}` is of type `{ty}` but is being called as a function."
+                        ),
+                        span,
+                    )
+                    .finish());
             }
         }
 
@@ -390,10 +495,12 @@ impl Checker {
                 .get("Boolean")
                 .expect("`Boolean` should be known")
         {
-            return Err(Error::spanned_message(
-                &format!("Condition was expected to be `Boolean` but was `{condition_type}`",),
-                expr_conditional.condition.span(),
-            ));
+            return Err(Error::type_mismatch()
+                .detail(
+                    &format!("Condition was expected to be `Boolean` but was `{condition_type}`",),
+                    expr_conditional.condition.span(),
+                )
+                .finish());
         }
 
         // TODO: Check condition body.
@@ -414,13 +521,15 @@ impl Checker {
             Expr::Call(expr_call) => match context.find(expr_call.name.as_str(), expr.span())? {
                 Type::Fn(func) => *func.return_type,
                 ty => {
-                    return Err(Error::spanned_message(
-                        &format!(
-                            "`{}` is of type `{ty}` which is not callable",
-                            expr_call.name.as_str()
-                        ),
-                        expr.span(),
-                    ));
+                    return Err(Error::type_mismatch()
+                        .detail(
+                            &format!(
+                                "Value `{}` is of type `{ty}` but is being called as a function.",
+                                expr_call.name.as_str()
+                            ),
+                            expr.span(),
+                        )
+                        .finish());
                 }
             },
 
