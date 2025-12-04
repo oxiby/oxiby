@@ -157,6 +157,10 @@ pub fn module_check(input_file: &Path) -> Result<(), Error> {
         Vec::new()
     };
 
+    if lex_errors.is_empty() && parse_errors.is_empty() {
+        return Ok(());
+    }
+
     Err(Error::Program(
         source.clone(),
         lex_errors
