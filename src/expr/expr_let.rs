@@ -3,7 +3,9 @@ use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
 use crate::Spanned;
+use crate::check::{Check, Checker, Context, Infer};
 use crate::compiler::WriteRuby;
+use crate::error::Error;
 use crate::expr::Expr;
 use crate::pattern::Pattern;
 use crate::token::Token;
@@ -63,5 +65,19 @@ impl WriteRuby for ExprLet<'_> {
             }
             _ => todo!("pattern not yet implemented for let bindings"),
         }
+    }
+}
+
+impl Check for ExprLet<'_> {
+    fn check(&self, _checker: &Checker, context: &mut Context) -> Result<(), Error> {
+        match &self.pattern {
+            Pattern::Ident(pattern_ident) => {
+                context.push(pattern_ident.ident.to_string(), self.body.infer(context)?);
+            }
+            Pattern::Literal(_) | Pattern::Wildcard => (),
+            pattern => todo!("Type checking is not yet implemented for pattern {pattern:?}"),
+        }
+
+        Ok(())
     }
 }

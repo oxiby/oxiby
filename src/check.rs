@@ -4,19 +4,23 @@ use std::collections::HashMap;
 use std::fmt::Display;
 
 use chumsky::span::{SimpleSpan, Span};
-use itertools::{EitherOrBoth, Itertools};
 
-use crate::ast::Operator;
 use crate::error::Error;
-use crate::expr::{Expr, ExprBinary, ExprCall, ExprConditional, ExprLet};
-use crate::item::{Item, ItemFn};
-use crate::pattern::Pattern;
+use crate::item::Item;
+
+pub trait Infer {
+    fn infer(&self, context: &Context) -> Result<Type, Error>;
+}
+
+pub trait Check {
+    fn check(&self, checker: &Checker, context: &mut Context) -> Result<(), Error>;
+}
 
 #[derive(Debug, Clone)]
 pub struct Context(Vec<Entry>);
 
 impl Context {
-    fn get(&self, name: &str) -> Option<Type> {
+    pub fn get(&self, name: &str) -> Option<Type> {
         self.0
             .iter()
             .rev()
@@ -24,7 +28,7 @@ impl Context {
             .map(|entry| entry.1.clone())
     }
 
-    fn find(&self, name: &str, span: SimpleSpan) -> Result<Type, Error> {
+    pub fn find(&self, name: &str, span: SimpleSpan) -> Result<Type, Error> {
         self.get(name).ok_or_else(|| {
             Error::build("Unknown binding")
                 .detail(
@@ -35,7 +39,7 @@ impl Context {
         })
     }
 
-    fn push<S>(&mut self, name: S, ty: Type)
+    pub fn push<S>(&mut self, name: S, ty: Type)
     where
         S: Into<String>,
     {
@@ -50,25 +54,25 @@ pub struct Entry(String, Type);
 pub struct TypeVar(usize);
 
 #[derive(Debug, Clone, Hash, PartialEq)]
-enum Type {
+pub enum Type {
     Constructor(String),
     Tuple(Vec<Type>),
     Fn(Func),
 }
 
 impl Type {
-    fn constructor<S>(s: S) -> Self
+    pub fn constructor<S>(s: S) -> Self
     where
         S: Into<String>,
     {
         Self::Constructor(s.into())
     }
 
-    fn unit() -> Self {
+    pub fn unit() -> Self {
         Self::Tuple(Vec::with_capacity(0))
     }
 
-    fn is_unit(&self) -> bool {
+    pub fn is_unit(&self) -> bool {
         matches!(self, Self::Tuple(types) if types.is_empty())
     }
 }
@@ -113,11 +117,11 @@ impl From<crate::types::Type<'_>> for Type {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq)]
-struct Func {
-    name: String,
-    positional_params: Vec<Type>,
-    keyword_params: Vec<(String, Type)>,
-    return_type: Box<Type>,
+pub struct Func {
+    pub(crate) name: String,
+    pub(crate) positional_params: Vec<Type>,
+    pub(crate) keyword_params: Vec<(String, Type)>,
+    pub(crate) return_type: Box<Type>,
 }
 
 impl Func {
@@ -139,9 +143,9 @@ impl Func {
 #[derive(Debug)]
 pub struct Checker {
     counter: usize,
-    type_constructors: HashMap<String, Type>,
-    value_constructors: HashMap<String, String>,
-    functions: HashMap<String, Func>,
+    pub(crate) type_constructors: HashMap<String, Type>,
+    pub(crate) value_constructors: HashMap<String, String>,
+    pub(crate) functions: HashMap<String, Func>,
 }
 
 impl Checker {
@@ -290,285 +294,10 @@ impl Checker {
                     context.push(param.ident.to_string(), param.ty.clone().into());
                 }
 
-                self.check_item_fn(&item_fn, &mut context)?;
+                item_fn.check(self, &mut context)?;
             }
         }
 
         Ok(())
-    }
-
-    fn check_item_fn(&self, item_fn: &ItemFn<'_>, context: &mut Context) -> Result<(), Error> {
-        let mut inferred = Type::unit();
-
-        for expr in &item_fn.body {
-            match &expr {
-                // Literals
-                Expr::Boolean(_) => {
-                    inferred = self
-                        .type_constructors
-                        .get("Boolean")
-                        .expect("`Boolean` should be known")
-                        .clone();
-                }
-                Expr::Integer(_) => {
-                    inferred = self
-                        .type_constructors
-                        .get("Integer")
-                        .expect("`Integer` should be known")
-                        .clone();
-                }
-                Expr::Float(_) => {
-                    inferred = self
-                        .type_constructors
-                        .get("Float")
-                        .expect("`Float` should be known")
-                        .clone();
-                }
-                Expr::String(_) => {
-                    inferred = self
-                        .type_constructors
-                        .get("String")
-                        .expect("`String` should be known")
-                        .clone();
-                }
-                Expr::Range(_) => {
-                    inferred = self
-                        .type_constructors
-                        .get("Range")
-                        .expect("`Range` should be known")
-                        .clone();
-                }
-
-                // Identifiers
-                Expr::ExprIdent(expr_ident) => {
-                    let name = expr_ident.as_str();
-
-                    inferred = context.find(name, expr.span())?;
-                }
-
-                // Calls
-                Expr::Call(expr_call) => self.check_expr_call(expr_call, context, expr.span())?,
-
-                // Control flow
-                Expr::Conditional(expr_conditional) => {
-                    self.check_expr_conditional(expr_conditional, context, expr.span())?;
-                }
-
-                // Patterns
-                Expr::Let(expr_let) => self.check_expr_let(expr_let, context, expr.span())?,
-
-                _ => todo!("Type checking not yet implemented for expression {expr:?}"),
-            }
-        }
-
-        let declared = item_fn
-            .signature
-            .return_ty
-            .clone()
-            .map_or_else(Type::unit, Into::into);
-
-        if inferred != declared {
-            return Err(Error::type_mismatch()
-                .detail(
-                    &format!(
-                        "Return type is declared as `{declared}` but the inferred type is \
-                         `{inferred}`."
-                    ),
-                    item_fn
-                        .signature
-                        .return_ty
-                        .as_ref()
-                        .map_or(item_fn.signature.span, |ty| {
-                            ty.span().unwrap_or(item_fn.signature.span)
-                        }),
-                )
-                .finish());
-        }
-
-        Ok(())
-    }
-
-    fn check_expr_call(
-        &self,
-        expr_call: &ExprCall<'_>,
-        context: &Context,
-        span: SimpleSpan,
-    ) -> Result<(), Error> {
-        let name = expr_call.name.as_str();
-
-        match context.find(name, span)? {
-            Type::Fn(func) => {
-                for pair in func
-                    .positional_params
-                    .iter()
-                    .zip_longest(expr_call.positional_args.iter())
-                {
-                    match pair {
-                        EitherOrBoth::Both(ty, expr) => {
-                            let expr_ty = self.infer_expr_type(expr, context)?;
-
-                            if *ty != expr_ty {
-                                return Err(Error::type_mismatch()
-                                    .detail(
-                                        &format!(
-                                            "Argument was expected to be `{ty}` but was \
-                                             `{expr_ty}`."
-                                        ),
-                                        expr.span(),
-                                    )
-                                    .finish());
-                            }
-                        }
-                        EitherOrBoth::Left(ty) => {
-                            return Err(Error::build("Missing argument")
-                                .detail(
-                                    &format!(
-                                        "Function expects argument of type `{ty}` but it was not \
-                                         given."
-                                    ),
-                                    span,
-                                )
-                                .finish());
-                        }
-                        EitherOrBoth::Right(expr) => {
-                            let expr_ty = self.infer_expr_type(expr, context)?;
-
-                            return Err(Error::build("Extra argument")
-                                .detail(
-                                    &format!(
-                                        "Argument of type `{expr_ty}` is not expected by function \
-                                         `{name}`."
-                                    ),
-                                    expr.span(),
-                                )
-                                .finish());
-                        }
-                    }
-                }
-            }
-            ty => {
-                return Err(Error::type_mismatch()
-                    .detail(
-                        &format!(
-                            "Value `{name}` is of type `{ty}` but is being called as a function."
-                        ),
-                        span,
-                    )
-                    .finish());
-            }
-        }
-
-        Ok(())
-    }
-
-    fn check_expr_let(
-        &self,
-        expr_let: &ExprLet<'_>,
-        context: &mut Context,
-        _span: SimpleSpan,
-    ) -> Result<(), Error> {
-        match &expr_let.pattern {
-            Pattern::Ident(pattern_ident) => {
-                context.push(
-                    pattern_ident.ident.to_string(),
-                    self.infer_expr_type(&expr_let.body, context)?,
-                );
-            }
-            Pattern::Literal(_) | Pattern::Wildcard => (),
-            pattern => todo!("Type checking is not yet implemented for pattern {pattern:?}"),
-        }
-
-        Ok(())
-    }
-
-    fn check_expr_conditional(
-        &self,
-        expr_conditional: &ExprConditional<'_>,
-        context: &mut Context,
-        _span: SimpleSpan,
-    ) -> Result<(), Error> {
-        let condition_type = self.infer_expr_type(&expr_conditional.condition, context)?;
-
-        if condition_type
-            != *self
-                .type_constructors
-                .get("Boolean")
-                .expect("`Boolean` should be known")
-        {
-            return Err(Error::type_mismatch()
-                .detail(
-                    &format!("Condition was expected to be `Boolean` but was `{condition_type}`",),
-                    expr_conditional.condition.span(),
-                )
-                .finish());
-        }
-
-        // TODO: Check condition body.
-
-        Ok(())
-    }
-
-    fn infer_expr_type(&self, expr: &Expr<'_>, context: &Context) -> Result<Type, Error> {
-        let ty = match expr {
-            // Literals
-            Expr::Boolean(..) => Type::constructor("Boolean"),
-            Expr::Float(..) => Type::constructor("Float"),
-            Expr::Integer(..) => Type::constructor("Integer"),
-            Expr::String(..) => Type::constructor("String"),
-            Expr::ExprIdent(ident) => context.find(ident.as_str(), expr.span())?,
-
-            // Calls
-            Expr::Call(expr_call) => match context.find(expr_call.name.as_str(), expr.span())? {
-                Type::Fn(func) => *func.return_type,
-                ty => {
-                    return Err(Error::type_mismatch()
-                        .detail(
-                            &format!(
-                                "Value `{}` is of type `{ty}` but is being called as a function.",
-                                expr_call.name.as_str()
-                            ),
-                            expr.span(),
-                        )
-                        .finish());
-                }
-            },
-
-            // Misc.
-            Expr::Binary(expr_binary) => self.infer_expr_binary_type(expr_binary, context)?,
-
-            _ => todo!("Type inference not yet implemented for expression {expr:?}"),
-        };
-
-        Ok(ty)
-    }
-
-    fn infer_expr_binary_type(
-        &self,
-        expr_binary: &ExprBinary<'_>,
-        context: &Context,
-    ) -> Result<Type, Error> {
-        let lhs_type = self.infer_expr_type(&expr_binary.lhs, context)?;
-        let rhs_type = self.infer_expr_type(&expr_binary.rhs, context)?;
-
-        // For now, assume that lhs implements the operator and that rhs is the appropriate type.
-        Ok(match expr_binary.op {
-            Operator::Assign => rhs_type,
-            Operator::AddAssign
-            | Operator::DivAssign
-            | Operator::MultAssign
-            | Operator::SubAssign => lhs_type,
-            Operator::And
-            | Operator::Or
-            | Operator::Eq
-            | Operator::Ne
-            | Operator::LtEq
-            | Operator::GtEq
-            | Operator::Lt
-            | Operator::Gt => Type::constructor("Boolean"),
-            Operator::Mul | Operator::Div | Operator::Mod | Operator::Add | Operator::Sub => {
-                Type::constructor("Integer")
-            }
-            Operator::Not => unreachable!("Cannot have a binary `Not` expression."),
-        })
     }
 }

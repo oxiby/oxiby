@@ -230,7 +230,7 @@ fn command_check() -> Command {
                 .short('d')
                 .long("debug")
                 .action(ArgAction::SetTrue)
-                .help("Print the state of the type checker")
+                .help("Print the state of the type checker"),
         )
         .arg(arg_input())
 }

@@ -3,7 +3,9 @@ use chumsky::prelude::*;
 
 use crate::Spanned;
 use crate::ast::Visibility;
+use crate::check::{self, Check, Checker, Context};
 use crate::compiler::{Scope, WriteRuby};
+use crate::error::Error;
 use crate::expr::{Expr, ExprIdent};
 use crate::token::Token;
 use crate::types::{Constraint, Type};
@@ -115,6 +117,96 @@ impl WriteRuby for ItemFn<'_> {
             scope.newline();
             scope.line("main");
         }
+    }
+}
+
+impl Check for ItemFn<'_> {
+    fn check(&self, checker: &Checker, context: &mut Context) -> Result<(), Error> {
+        let mut inferred = check::Type::unit();
+
+        for expr in &self.body {
+            match &expr {
+                // Literals
+                Expr::Boolean(_) => {
+                    inferred = checker
+                        .type_constructors
+                        .get("Boolean")
+                        .expect("`Boolean` should be known")
+                        .clone();
+                }
+                Expr::Integer(_) => {
+                    inferred = checker
+                        .type_constructors
+                        .get("Integer")
+                        .expect("`Integer` should be known")
+                        .clone();
+                }
+                Expr::Float(_) => {
+                    inferred = checker
+                        .type_constructors
+                        .get("Float")
+                        .expect("`Float` should be known")
+                        .clone();
+                }
+                Expr::String(_) => {
+                    inferred = checker
+                        .type_constructors
+                        .get("String")
+                        .expect("`String` should be known")
+                        .clone();
+                }
+                Expr::Range(_) => {
+                    inferred = checker
+                        .type_constructors
+                        .get("Range")
+                        .expect("`Range` should be known")
+                        .clone();
+                }
+
+                // Identifiers
+                Expr::ExprIdent(expr_ident) => {
+                    let name = expr_ident.as_str();
+
+                    inferred = context.find(name, expr.span())?;
+                }
+
+                // Calls
+                Expr::Call(expr_call) => expr_call.check(checker, context)?,
+
+                // Control flow
+                Expr::Conditional(expr_conditional) => expr_conditional.check(checker, context)?,
+
+                // Patterns
+                Expr::Let(expr_let) => expr_let.check(checker, context)?,
+
+                _ => todo!("Type checking not yet implemented for expression {expr:?}"),
+            }
+        }
+
+        let declared = self
+            .signature
+            .return_ty
+            .clone()
+            .map_or_else(check::Type::unit, Into::into);
+
+        if inferred != declared {
+            return Err(Error::type_mismatch()
+                .detail(
+                    &format!(
+                        "Return type is declared as `{declared}` but the inferred type is \
+                         `{inferred}`."
+                    ),
+                    self.signature
+                        .return_ty
+                        .as_ref()
+                        .map_or(self.signature.span, |ty| {
+                            ty.span().unwrap_or(self.signature.span)
+                        }),
+                )
+                .finish());
+        }
+
+        Ok(())
     }
 }
 

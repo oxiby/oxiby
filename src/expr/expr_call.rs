@@ -1,8 +1,11 @@
 use chumsky::input::BorrowInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
+use itertools::{EitherOrBoth, Itertools};
 
+use crate::check::{self, Check, Checker, Context, Infer};
 use crate::compiler::{Scope, WriteRuby};
+use crate::error::Error;
 use crate::expr::{Expr, ExprIdent};
 use crate::token::Token;
 use crate::types::TypeIdent;
@@ -155,6 +158,76 @@ impl WriteRuby for ExprCall<'_> {
         }
 
         scope.fragment(")");
+    }
+}
+
+impl Check for ExprCall<'_> {
+    fn check(&self, _checker: &Checker, context: &mut Context) -> Result<(), Error> {
+        let name = self.name.as_str();
+
+        match context.find(name, self.span)? {
+            check::Type::Fn(func) => {
+                for pair in func
+                    .positional_params
+                    .iter()
+                    .zip_longest(self.positional_args.iter())
+                {
+                    match pair {
+                        EitherOrBoth::Both(ty, expr) => {
+                            let expr_ty = expr.infer(context)?;
+
+                            if *ty != expr_ty {
+                                return Err(Error::type_mismatch()
+                                    .detail(
+                                        &format!(
+                                            "Argument was expected to be `{ty}` but was \
+                                             `{expr_ty}`."
+                                        ),
+                                        expr.span(),
+                                    )
+                                    .finish());
+                            }
+                        }
+                        EitherOrBoth::Left(ty) => {
+                            return Err(Error::build("Missing argument")
+                                .detail(
+                                    &format!(
+                                        "Function expects argument of type `{ty}` but it was not \
+                                         given."
+                                    ),
+                                    self.span,
+                                )
+                                .finish());
+                        }
+                        EitherOrBoth::Right(expr) => {
+                            let expr_ty = expr.infer(context)?;
+
+                            return Err(Error::build("Extra argument")
+                                .detail(
+                                    &format!(
+                                        "Argument of type `{expr_ty}` is not expected by function \
+                                         `{name}`."
+                                    ),
+                                    expr.span(),
+                                )
+                                .finish());
+                        }
+                    }
+                }
+            }
+            ty => {
+                return Err(Error::type_mismatch()
+                    .detail(
+                        &format!(
+                            "Value `{name}` is of type `{ty}` but is being called as a function."
+                        ),
+                        self.span,
+                    )
+                    .finish());
+            }
+        }
+
+        Ok(())
     }
 }
 

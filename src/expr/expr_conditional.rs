@@ -3,7 +3,9 @@ use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
 use super::ExprBlock;
+use crate::check::{Check, Checker, Context, Infer};
 use crate::compiler::{Scope, WriteRuby};
+use crate::error::Error;
 use crate::expr::Expr;
 use crate::token::Token;
 
@@ -66,6 +68,30 @@ impl WriteRuby for ExprConditional<'_> {
                 None => (),
             },
         );
+    }
+}
+
+impl Check for ExprConditional<'_> {
+    fn check(&self, checker: &Checker, context: &mut Context) -> Result<(), Error> {
+        let condition_type = self.condition.infer(context)?;
+
+        if condition_type
+            != *checker
+                .type_constructors
+                .get("Boolean")
+                .expect("`Boolean` should be known")
+        {
+            return Err(Error::type_mismatch()
+                .detail(
+                    &format!("Condition was expected to be `Boolean` but was `{condition_type}`",),
+                    self.condition.span(),
+                )
+                .finish());
+        }
+
+        // TODO: Check condition body.
+
+        Ok(())
     }
 }
 
