@@ -114,7 +114,7 @@ pub fn module_check(source: &str, debug: bool) -> Result<(), Vec<Error>> {
         if let Some(items) = items {
             let mut checker = Checker::new();
 
-            let result = checker.infer(items).map_err(|error| vec![error]);
+            let result = checker.check(items).map_err(|error| vec![error]);
 
             if debug {
                 dbg!(&checker);

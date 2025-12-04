@@ -9,11 +9,7 @@ use crate::error::Error;
 use crate::item::Item;
 
 pub trait Infer {
-    fn infer(&self, context: &Context) -> Result<Type, Error>;
-}
-
-pub trait Check {
-    fn check(&self, checker: &Checker, context: &mut Context) -> Result<(), Error>;
+    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<Type, Error>;
 }
 
 #[derive(Debug, Clone)]
@@ -184,7 +180,7 @@ impl Checker {
         type_var
     }
 
-    pub fn infer(&mut self, items: Vec<Item>) -> Result<(), Error> {
+    pub fn check(&mut self, items: Vec<Item>) -> Result<(), Error> {
         // First pass: Collect function signatures.
         for item in &items {
             if let Item::Fn(item_fn) = item {
@@ -294,7 +290,7 @@ impl Checker {
                     context.push(param.ident.to_string(), param.ty.clone().into());
                 }
 
-                item_fn.check(self, &mut context)?;
+                item_fn.infer(self, &mut context)?;
             }
         }
 

@@ -3,7 +3,7 @@ use chumsky::prelude::*;
 
 use crate::Spanned;
 use crate::ast::Visibility;
-use crate::check::{self, Check, Checker, Context};
+use crate::check::{self, Checker, Context, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::{Expr, ExprIdent};
@@ -120,67 +120,12 @@ impl WriteRuby for ItemFn<'_> {
     }
 }
 
-impl Check for ItemFn<'_> {
-    fn check(&self, checker: &Checker, context: &mut Context) -> Result<(), Error> {
+impl Infer for ItemFn<'_> {
+    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
         let mut inferred = check::Type::unit();
 
         for expr in &self.body {
-            match &expr {
-                // Literals
-                Expr::Boolean(_) => {
-                    inferred = checker
-                        .type_constructors
-                        .get("Boolean")
-                        .expect("`Boolean` should be known")
-                        .clone();
-                }
-                Expr::Integer(_) => {
-                    inferred = checker
-                        .type_constructors
-                        .get("Integer")
-                        .expect("`Integer` should be known")
-                        .clone();
-                }
-                Expr::Float(_) => {
-                    inferred = checker
-                        .type_constructors
-                        .get("Float")
-                        .expect("`Float` should be known")
-                        .clone();
-                }
-                Expr::String(_) => {
-                    inferred = checker
-                        .type_constructors
-                        .get("String")
-                        .expect("`String` should be known")
-                        .clone();
-                }
-                Expr::Range(_) => {
-                    inferred = checker
-                        .type_constructors
-                        .get("Range")
-                        .expect("`Range` should be known")
-                        .clone();
-                }
-
-                // Identifiers
-                Expr::ExprIdent(expr_ident) => {
-                    let name = expr_ident.as_str();
-
-                    inferred = context.find(name, expr.span())?;
-                }
-
-                // Calls
-                Expr::Call(expr_call) => expr_call.check(checker, context)?,
-
-                // Control flow
-                Expr::Conditional(expr_conditional) => expr_conditional.check(checker, context)?,
-
-                // Patterns
-                Expr::Let(expr_let) => expr_let.check(checker, context)?,
-
-                _ => todo!("Type checking not yet implemented for expression {expr:?}"),
-            }
+            inferred = expr.infer(checker, context)?;
         }
 
         let declared = self
@@ -189,7 +134,9 @@ impl Check for ItemFn<'_> {
             .clone()
             .map_or_else(check::Type::unit, Into::into);
 
-        if inferred != declared {
+        if (self.signature.associated_fn || self.signature.name.as_str() != "main")
+            && inferred != declared
+        {
             return Err(Error::type_mismatch()
                 .detail(
                     &format!(
@@ -206,7 +153,7 @@ impl Check for ItemFn<'_> {
                 .finish());
         }
 
-        Ok(())
+        Ok(inferred)
     }
 }
 

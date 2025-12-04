@@ -2,7 +2,9 @@ use chumsky::input::BorrowInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
+use crate::check::{self, Checker, Context, Infer};
 use crate::compiler::{Scope, WriteRuby};
+use crate::error::Error;
 use crate::expr::Expr;
 use crate::token::Token;
 
@@ -64,5 +66,21 @@ impl WriteRuby for ExprTuple<'_> {
             }
         }
         scope.fragment("])");
+    }
+}
+
+impl Infer for ExprTuple<'_> {
+    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+        if self.exprs.is_empty() {
+            return Ok(check::Type::unit());
+        }
+
+        let mut types = Vec::new();
+
+        for expr in &self.exprs {
+            types.push(expr.infer(checker, context)?);
+        }
+
+        Ok(check::Type::Tuple(types))
     }
 }

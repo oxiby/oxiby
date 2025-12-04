@@ -5,7 +5,7 @@ use chumsky::span::SimpleSpan;
 
 use crate::Spanned;
 use crate::ast::Operator;
-use crate::check::{self, Context, Infer};
+use crate::check::{self, Checker, Context, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::token::Token;
@@ -529,7 +529,7 @@ impl WriteRuby for Expr<'_> {
 }
 
 impl Infer for Expr<'_> {
-    fn infer(&self, context: &Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
         let ty = match self {
             // Literals
             Expr::Boolean(..) => check::Type::constructor("Boolean"),
@@ -537,6 +537,9 @@ impl Infer for Expr<'_> {
             Expr::Integer(..) => check::Type::constructor("Integer"),
             Expr::String(..) => check::Type::constructor("String"),
             Expr::ExprIdent(ident) => context.find(ident.as_str(), self.span())?,
+
+            // Compound primitives
+            Expr::Tuple(expr_tuple) => expr_tuple.infer(checker, context)?,
 
             // Calls
             Expr::Call(expr_call) => match context.find(expr_call.name.as_str(), self.span())? {
@@ -554,8 +557,14 @@ impl Infer for Expr<'_> {
                 }
             },
 
+            // Control flow
+            Expr::Conditional(expr_conditional) => expr_conditional.infer(checker, context)?,
+
+            // Patterns
+            Expr::Let(expr_let) => expr_let.infer(checker, context)?,
+
             // Misc.
-            Expr::Binary(expr_binary) => expr_binary.infer(context)?,
+            Expr::Binary(expr_binary) => expr_binary.infer(checker, context)?,
 
             _ => todo!("Type inference not yet implemented for expression {self:?}"),
         };
@@ -581,9 +590,9 @@ impl WriteRuby for ExprBinary<'_> {
 }
 
 impl Infer for ExprBinary<'_> {
-    fn infer(&self, context: &Context) -> Result<check::Type, Error> {
-        let lhs_type = self.lhs.infer(context)?;
-        let rhs_type = self.rhs.infer(context)?;
+    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+        let lhs_type = self.lhs.infer(checker, context)?;
+        let rhs_type = self.rhs.infer(checker, context)?;
 
         // For now, assume that lhs implements the operator and that rhs is the appropriate type.
         Ok(match &self.op {

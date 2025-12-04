@@ -3,7 +3,7 @@ use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
 use super::ExprBlock;
-use crate::check::{Check, Checker, Context, Infer};
+use crate::check::{self, Checker, Context, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::Expr;
@@ -71,9 +71,9 @@ impl WriteRuby for ExprConditional<'_> {
     }
 }
 
-impl Check for ExprConditional<'_> {
-    fn check(&self, checker: &Checker, context: &mut Context) -> Result<(), Error> {
-        let condition_type = self.condition.infer(context)?;
+impl Infer for ExprConditional<'_> {
+    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+        let condition_type = self.condition.infer(checker, context)?;
 
         if condition_type
             != *checker
@@ -89,9 +89,39 @@ impl Check for ExprConditional<'_> {
                 .finish());
         }
 
-        // TODO: Check condition body.
+        let then_type = self.then_branch.infer(checker, context)?;
 
-        Ok(())
+        let maybe_else = match &self.else_branch {
+            Some(ConditionalElseBranch::Block(expr_block)) => {
+                Some((expr_block.infer(checker, context)?, expr_block.span))
+            }
+            Some(ConditionalElseBranch::Conditional(expr_conditional)) => Some((
+                expr_conditional.infer(checker, context)?,
+                expr_conditional.span,
+            )),
+            None => None,
+        };
+
+        if let Some((else_type, else_span)) = maybe_else {
+            if then_type != else_type {
+                return Err(Error::type_mismatch()
+                    .detail(
+                        "Each branch of a conditional expression must be the same type.",
+                        self.span,
+                    )
+                    .with_context(
+                        &format!("The `if` branch has type `{then_type}`..."),
+                        self.then_branch.span,
+                    )
+                    .with_context(
+                        &format!("...but the `else` branch has type `{else_type}`."),
+                        else_span,
+                    )
+                    .finish());
+            }
+        }
+
+        Ok(then_type)
     }
 }
 

@@ -3,7 +3,7 @@ use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 use itertools::{EitherOrBoth, Itertools};
 
-use crate::check::{self, Check, Checker, Context, Infer};
+use crate::check::{self, Checker, Context, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::{Expr, ExprIdent};
@@ -161,8 +161,8 @@ impl WriteRuby for ExprCall<'_> {
     }
 }
 
-impl Check for ExprCall<'_> {
-    fn check(&self, _checker: &Checker, context: &mut Context) -> Result<(), Error> {
+impl Infer for ExprCall<'_> {
+    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
         let name = self.name.as_str();
 
         match context.find(name, self.span)? {
@@ -174,7 +174,7 @@ impl Check for ExprCall<'_> {
                 {
                     match pair {
                         EitherOrBoth::Both(ty, expr) => {
-                            let expr_ty = expr.infer(context)?;
+                            let expr_ty = expr.infer(checker, context)?;
 
                             if *ty != expr_ty {
                                 return Err(Error::type_mismatch()
@@ -200,7 +200,7 @@ impl Check for ExprCall<'_> {
                                 .finish());
                         }
                         EitherOrBoth::Right(expr) => {
-                            let expr_ty = expr.infer(context)?;
+                            let expr_ty = expr.infer(checker, context)?;
 
                             return Err(Error::build("Extra argument")
                                 .detail(
@@ -214,20 +214,16 @@ impl Check for ExprCall<'_> {
                         }
                     }
                 }
-            }
-            ty => {
-                return Err(Error::type_mismatch()
-                    .detail(
-                        &format!(
-                            "Value `{name}` is of type `{ty}` but is being called as a function."
-                        ),
-                        self.span,
-                    )
-                    .finish());
-            }
-        }
 
-        Ok(())
+                Ok(*func.return_type)
+            }
+            ty => Err(Error::type_mismatch()
+                .detail(
+                    &format!("Value `{name}` is of type `{ty}` but is being called as a function."),
+                    self.span,
+                )
+                .finish()),
+        }
     }
 }
 
