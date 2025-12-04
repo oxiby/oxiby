@@ -542,20 +542,7 @@ impl Infer for Expr<'_> {
             Expr::Tuple(expr_tuple) => expr_tuple.infer(checker, context)?,
 
             // Calls
-            Expr::Call(expr_call) => match context.find(expr_call.name.as_str(), self.span())? {
-                check::Type::Fn(func) => *func.return_type,
-                ty => {
-                    return Err(Error::type_mismatch()
-                        .detail(
-                            &format!(
-                                "Value `{}` is of type `{ty}` but is being called as a function.",
-                                expr_call.name.as_str()
-                            ),
-                            self.span(),
-                        )
-                        .finish());
-                }
-            },
+            Expr::Call(expr_call) => expr_call.infer(checker, context)?,
 
             // Control flow
             Expr::Conditional(expr_conditional) => expr_conditional.infer(checker, context)?,
