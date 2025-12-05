@@ -42,7 +42,7 @@ impl Infer for ExprList<'_> {
 
             if inferred != next_inferred {
                 return Err(Error::type_mismatch()
-                    .detail("All list elements must be of the same type", self.span)
+                    .with_detail("All list elements must be of the same type", self.span)
                     .with_context(
                         &format!("The first element of this list is of type `{inferred}`..."),
                         span,

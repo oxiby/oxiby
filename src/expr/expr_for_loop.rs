@@ -76,14 +76,11 @@ impl Infer for ExprForLoop<'_> {
                             vec![generic_types[0].clone(), generic_types[1].clone()]
                         } else {
                             return Err(Error::build("Type not iterable")
-                                .detail(
+                                .with_detail(
                                     &format!("Type `{items_type}` is not iterable."),
                                     self.items.span(),
                                 )
-                                .with_context(
-                                    "Try surrounding the expression with `[` and `]`.",
-                                    self.items.span(),
-                                )
+                                .with_help("Try surrounding the expression with `[` and `]`.")
                                 .finish());
                         }
                     }
@@ -92,14 +89,11 @@ impl Infer for ExprForLoop<'_> {
             }
             items_type => {
                 return Err(Error::build("Type not iterable")
-                    .detail(
+                    .with_detail(
                         &format!("Type `{items_type}` is not iterable."),
                         self.items.span(),
                     )
-                    .with_context(
-                        "Try surrounding the expression with `[` and `]`.",
-                        self.items.span(),
-                    )
+                    .with_help("Try surrounding the expression with `[` and `]`.")
                     .finish());
             }
         };

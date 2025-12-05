@@ -184,8 +184,16 @@ pub fn report_errors(
         )
         .with_message(error.message);
 
+        for help in error.help {
+            report.add_help(help);
+        }
+
+        for note in error.notes {
+            report.add_note(note);
+        }
+
         if let Some(detail) = error.detail {
-            report = report.with_label(
+            report.add_label(
                 Label::new((file_name.to_string(), error.span.into_range()))
                     .with_message(detail)
                     .with_color(Color::Red),

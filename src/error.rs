@@ -6,6 +6,8 @@ use chumsky::span::SimpleSpan;
 pub struct Error {
     pub(crate) message: String,
     pub(crate) detail: Option<String>,
+    pub(crate) help: Vec<String>,
+    pub(crate) notes: Vec<String>,
     pub(crate) contexts: Vec<ErrorContext>,
     pub(crate) span: SimpleSpan,
 }
@@ -23,18 +25,6 @@ impl Error {
         Builder::new(message)
     }
 
-    pub fn message<M>(message: &M) -> Self
-    where
-        M: ToString + ?Sized,
-    {
-        Self {
-            message: message.to_string(),
-            detail: None,
-            contexts: Vec::new(),
-            span: (0..0).into(),
-        }
-    }
-
     pub fn type_mismatch() -> Builder {
         Builder::new("Mismatched types")
     }
@@ -48,6 +38,8 @@ where
         Self {
             message: value.to_string(),
             detail: Some(value.reason().to_string()),
+            help: Vec::new(),
+            notes: Vec::new(),
             contexts: value
                 .contexts()
                 .map(|(label, span)| ErrorContext {
@@ -62,6 +54,11 @@ where
 
 pub struct Builder {
     message: String,
+    detail: Option<String>,
+    help: Vec<String>,
+    notes: Vec<String>,
+    contexts: Vec<ErrorContext>,
+    span: SimpleSpan,
 }
 
 impl Builder {
@@ -71,86 +68,51 @@ impl Builder {
     {
         Builder {
             message: message.to_string(),
-        }
-    }
-
-    pub fn finish(self) -> Error {
-        Error {
-            message: self.message,
             detail: None,
+            help: Vec::new(),
+            notes: Vec::new(),
             contexts: Vec::new(),
             span: (0..0).into(),
         }
     }
 
-    pub fn detail<D>(self, detail: &D, span: SimpleSpan) -> DetailedBuilder
-    where
-        D: ToString + ?Sized,
-    {
-        DetailedBuilder {
-            message: self.message,
-            detail: detail.to_string(),
-            span,
-        }
-    }
-}
-
-pub struct DetailedBuilder {
-    message: String,
-    detail: String,
-    span: SimpleSpan,
-}
-
-impl DetailedBuilder {
     pub fn finish(self) -> Error {
         Error {
             message: self.message,
-            detail: Some(self.detail),
-            contexts: Vec::new(),
-            span: self.span,
-        }
-    }
-
-    pub fn into_contextual(self) -> ContextBuilder {
-        ContextBuilder {
-            message: self.message,
             detail: self.detail,
-            contexts: Vec::new(),
-            span: self.span,
-        }
-    }
-
-    pub fn with_context<M>(self, message: &M, span: SimpleSpan) -> ContextBuilder
-    where
-        M: ToString + ?Sized,
-    {
-        ContextBuilder {
-            message: self.message,
-            detail: self.detail,
-            contexts: vec![ErrorContext {
-                message: message.to_string(),
-                span,
-            }],
-            span: self.span,
-        }
-    }
-}
-
-pub struct ContextBuilder {
-    message: String,
-    detail: String,
-    contexts: Vec<ErrorContext>,
-    span: SimpleSpan,
-}
-
-impl ContextBuilder {
-    pub fn finish(self) -> Error {
-        Error {
-            message: self.message,
-            detail: Some(self.detail),
+            help: self.help,
+            notes: self.notes,
             contexts: self.contexts,
             span: self.span,
         }
+    }
+
+    pub fn with_detail<D>(mut self, detail: &D, span: SimpleSpan) -> Self
+    where
+        D: ToString + ?Sized,
+    {
+        self.detail = Some(detail.to_string());
+        self.span = span;
+
+        self
+    }
+
+    pub fn with_help<H>(mut self, help: &H) -> Self
+    where
+        H: ToString + ?Sized,
+    {
+        self.help.push(help.to_string());
+
+        self
+    }
+
+    pub fn with_note<N>(mut self, note: &N) -> Self
+    where
+        N: ToString + ?Sized,
+    {
+        self.notes.push(note.to_string());
+
+        self
     }
 
     pub fn with_context<M>(mut self, message: &M, span: SimpleSpan) -> Self

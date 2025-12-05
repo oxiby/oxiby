@@ -178,7 +178,7 @@ impl Infer for ExprCall<'_> {
 
                             if *ty != expr_ty {
                                 return Err(Error::type_mismatch()
-                                    .detail(
+                                    .with_detail(
                                         &format!(
                                             "Argument was expected to be `{ty:?}` but was \
                                              `{expr_ty:?}`."
@@ -190,7 +190,7 @@ impl Infer for ExprCall<'_> {
                         }
                         EitherOrBoth::Left(ty) => {
                             return Err(Error::build("Missing argument")
-                                .detail(
+                                .with_detail(
                                     &format!(
                                         "Function expects argument of type `{ty}` but it was not \
                                          given."
@@ -203,7 +203,7 @@ impl Infer for ExprCall<'_> {
                             let expr_ty = expr.infer(checker, context)?;
 
                             return Err(Error::build("Extra argument")
-                                .detail(
+                                .with_detail(
                                     &format!(
                                         "Argument of type `{expr_ty}` is not expected by function \
                                          `{name}`."
@@ -218,7 +218,7 @@ impl Infer for ExprCall<'_> {
                 Ok(*func.return_type)
             }
             ty => Err(Error::type_mismatch()
-                .detail(
+                .with_detail(
                     &format!("Value `{name}` is of type `{ty}` but is being called as a function."),
                     self.span,
                 )

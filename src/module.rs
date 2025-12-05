@@ -56,7 +56,7 @@ pub fn module_program(
                 .expect("parent was extracted from the entry file so it should match")
         })
         .try_into()
-        .map_err(|error| vec![Error::message(&error)])?;
+        .map_err(|error| vec![Error::build(&error).finish()])?;
 
     let (tokens, lex_errors) = crate::lexer().parse(source).into_output_errors();
 

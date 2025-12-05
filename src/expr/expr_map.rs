@@ -50,7 +50,7 @@ impl Infer for ExprMap<'_> {
 
             if inferred_key != next_inferred_key {
                 return Err(Error::type_mismatch()
-                    .detail("All map keys must be of the same type", self.span)
+                    .with_detail("All map keys must be of the same type", self.span)
                     .with_context(
                         &format!("The first pair's key is of type `{inferred_key}`..."),
                         key_span,
@@ -64,7 +64,7 @@ impl Infer for ExprMap<'_> {
 
             if inferred_value != next_inferred_value {
                 return Err(Error::type_mismatch()
-                    .detail("All map values must be of the same type", self.span)
+                    .with_detail("All map values must be of the same type", self.span)
                     .with_context(
                         &format!("The first pair's value is of type `{inferred_value}`..."),
                         value_span,

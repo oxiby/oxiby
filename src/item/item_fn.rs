@@ -138,7 +138,7 @@ impl Infer for ItemFn<'_> {
             && inferred != declared
         {
             return Err(Error::type_mismatch()
-                .detail(
+                .with_detail(
                     &format!(
                         "Return type is declared as `{declared}` but the inferred type is \
                          `{inferred}`."

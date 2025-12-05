@@ -77,7 +77,7 @@ impl Infer for ExprConditional<'_> {
 
         if condition_type != check::Type::boolean() {
             return Err(Error::type_mismatch()
-                .detail(
+                .with_detail(
                     &format!("Condition was expected to be `Boolean` but was `{condition_type}`",),
                     self.condition.span(),
                 )
@@ -100,7 +100,7 @@ impl Infer for ExprConditional<'_> {
         if let Some((else_type, else_span)) = maybe_else {
             if then_type != else_type {
                 return Err(Error::type_mismatch()
-                    .detail(
+                    .with_detail(
                         "Each branch of a conditional expression must be the same type.",
                         self.span,
                     )

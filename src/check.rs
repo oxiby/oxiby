@@ -31,7 +31,7 @@ impl Context {
     pub fn find(&self, name: &str, span: SimpleSpan) -> Result<Type, Error> {
         self.get(name).ok_or_else(|| {
             Error::build("Unknown binding")
-                .detail(
+                .with_detail(
                     &format!("Cannot find binding `{name}` in this scope."),
                     span,
                 )
@@ -318,12 +318,10 @@ impl Checker {
                 let name = item_fn.signature.name.to_string();
 
                 if name == "main" && !(pos.is_empty() && kw.is_empty() && ret.is_unit()) {
-                    let mut error = Error::build("Invalid signature for `main`")
-                        .detail(
-                            "The `main` function cannot have input or output.",
-                            item_fn.signature.span,
-                        )
-                        .into_contextual();
+                    let mut error = Error::build("Invalid signature for `main`").with_detail(
+                        "The `main` function cannot have input or output.",
+                        item_fn.signature.span,
+                    );
 
                     if !pos.is_empty() {
                         error = error.with_context(
