@@ -554,7 +554,9 @@ impl Infer for Expr<'_> {
             Expr::Conditional(expr_conditional) => expr_conditional.infer(checker, context)?,
             Expr::Continue(..) => check::Type::unit(),
             Expr::ForLoop(expr_for_loop) => expr_for_loop.infer(checker, context)?,
+            Expr::Loop(expr_loop) => expr_loop.infer(checker, context)?,
             Expr::Return(expr_return) => expr_return.infer(checker, context)?,
+            Expr::WhileLoop(expr_while) => expr_while.infer(checker, context)?,
 
             // Patterns
             Expr::Let(expr_let) => expr_let.infer(checker, context)?,

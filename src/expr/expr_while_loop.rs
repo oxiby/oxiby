@@ -2,7 +2,9 @@ use chumsky::input::BorrowInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
+use crate::check::{self, Checker, Context, Infer};
 use crate::compiler::{Scope, WriteRuby};
+use crate::error::Error;
 use crate::expr::{Expr, ExprBlock};
 use crate::token::Token;
 
@@ -41,5 +43,24 @@ impl WriteRuby for ExprWhileLoop<'_> {
             scope.newline();
             self.block.unscoped().write_ruby(scope);
         });
+    }
+}
+
+impl Infer for ExprWhileLoop<'_> {
+    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+        let condition_type = self.condition.infer(checker, context)?;
+
+        if condition_type != check::Type::boolean() {
+            return Err(Error::type_mismatch()
+                .with_detail(
+                    &format!("Condition was expected to be `Boolean` but was `{condition_type}`",),
+                    self.condition.span(),
+                )
+                .finish());
+        }
+
+        self.block.infer(checker, context)?;
+
+        Ok(check::Type::unit())
     }
 }
