@@ -108,6 +108,14 @@ impl Type {
         Self::Constructor(s.into())
     }
 
+    pub fn constructor_name(&self) -> Option<&str> {
+        if let Self::Constructor(name) = self {
+            Some(name)
+        } else {
+            None
+        }
+    }
+
     pub fn variable<S>(s: S) -> Self
     where
         S: Into<String>,

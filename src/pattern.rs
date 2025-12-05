@@ -228,7 +228,7 @@ impl WriteRuby for PatternType<'_> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PatternTuple<'a> {
-    patterns: Vec<Pattern<'a>>,
+    pub(crate) patterns: Vec<Pattern<'a>>,
     is_bracketed: bool,
 }
 

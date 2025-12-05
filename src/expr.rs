@@ -539,6 +539,7 @@ impl Infer for Expr<'_> {
             Expr::Range(..) => check::Type::range(),
 
             // Compound primitives
+            Expr::Map(expr_map) => expr_map.infer(checker, context)?,
             Expr::List(expr_list) => expr_list.infer(checker, context)?,
             Expr::Tuple(expr_tuple) => expr_tuple.infer(checker, context)?,
 

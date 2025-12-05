@@ -67,7 +67,29 @@ impl WriteRuby for ExprForLoop<'_> {
 impl Infer for ExprForLoop<'_> {
     fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
         let element_type = match self.items.infer(checker, context)? {
-            check::Type::Generic(_, generic_types) => generic_types[0].clone(),
+            ref items_type @ check::Type::Generic(ref constructor_type, ref generic_types) => {
+                match constructor_type.constructor_name() {
+                    Some(name) => {
+                        if name == "List" {
+                            vec![generic_types[0].clone()]
+                        } else if name == "Map" {
+                            vec![generic_types[0].clone(), generic_types[1].clone()]
+                        } else {
+                            return Err(Error::build("Type not iterable")
+                                .detail(
+                                    &format!("Type `{items_type}` is not iterable."),
+                                    self.items.span(),
+                                )
+                                .with_context(
+                                    "Try surrounding the expression with `[` and `]`.",
+                                    self.items.span(),
+                                )
+                                .finish());
+                        }
+                    }
+                    None => return Err(Error::build("TODO").finish()),
+                }
+            }
             items_type => {
                 return Err(Error::build("Type not iterable")
                     .detail(
@@ -86,8 +108,15 @@ impl Infer for ExprForLoop<'_> {
 
         match &self.pattern {
             Pattern::Ident(pattern_ident) => {
-                context.push_term_var(pattern_ident.ident.as_str(), element_type);
+                context.push_term_var(pattern_ident.ident.as_str(), element_type[0].clone());
             }
+            Pattern::Tuple(pattern_tuple) => match &pattern_tuple.patterns.as_slice() {
+                [Pattern::Ident(key_ident), Pattern::Ident(value_ident)] => {
+                    context.push_term_var(key_ident.ident.as_str(), element_type[0].clone());
+                    context.push_term_var(value_ident.ident.as_str(), element_type[1].clone());
+                }
+                _ => todo!("Unsupported tuple pattern: {:?}", pattern_tuple),
+            },
             pattern => {
                 todo!("Type checking for for loops is not yet implemented for pattern {pattern:?}")
             }
