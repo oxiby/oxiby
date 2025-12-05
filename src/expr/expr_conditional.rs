@@ -75,12 +75,7 @@ impl Infer for ExprConditional<'_> {
     fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
         let condition_type = self.condition.infer(checker, context)?;
 
-        if condition_type
-            != *checker
-                .type_constructors
-                .get("Boolean")
-                .expect("`Boolean` should be known")
-        {
+        if condition_type != check::Type::boolean() {
             return Err(Error::type_mismatch()
                 .detail(
                     &format!("Condition was expected to be `Boolean` but was `{condition_type}`",),

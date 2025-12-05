@@ -4,7 +4,9 @@ use chumsky::span::SimpleSpan;
 
 use super::ExprBlock;
 use crate::Spanned;
+use crate::check::{self, Checker, Context, Infer};
 use crate::compiler::{Scope, WriteRuby};
+use crate::error::Error;
 use crate::expr::Expr;
 use crate::pattern::Pattern;
 use crate::token::Token;
@@ -59,5 +61,42 @@ impl WriteRuby for ExprForLoop<'_> {
             self.block.unscoped().write_ruby(scope);
         });
         scope.fragment("end");
+    }
+}
+
+impl Infer for ExprForLoop<'_> {
+    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+        let element_type = match self.items.infer(checker, context)? {
+            check::Type::Generic(_, generic_types) => generic_types[0].clone(),
+            items_type => {
+                return Err(Error::build("Type not iterable")
+                    .detail(
+                        &format!("Type `{items_type}` is not iterable."),
+                        self.items.span(),
+                    )
+                    .with_context(
+                        "Try surrounding the expression with `[` and `]`.",
+                        self.items.span(),
+                    )
+                    .finish());
+            }
+        };
+
+        context.push_scope();
+
+        match &self.pattern {
+            Pattern::Ident(pattern_ident) => {
+                context.push_term_var(pattern_ident.ident.as_str(), element_type);
+            }
+            pattern => {
+                todo!("Type checking for for loops is not yet implemented for pattern {pattern:?}")
+            }
+        }
+
+        let ty = self.block.infer(checker, context)?;
+
+        context.pop_scope();
+
+        Ok(ty)
     }
 }

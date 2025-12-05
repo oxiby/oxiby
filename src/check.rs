@@ -17,11 +17,15 @@ pub struct Context(Vec<Entry>);
 
 impl Context {
     pub fn get(&self, name: &str) -> Option<Type> {
-        self.0
-            .iter()
-            .rev()
-            .find(|var| var.0 == name)
-            .map(|entry| entry.1.clone())
+        for entry in self.0.iter().rev() {
+            if let Entry::TermVar(var, ty) = entry
+                && var == name
+            {
+                return Some(ty.clone());
+            }
+        }
+
+        None
     }
 
     pub fn find(&self, name: &str, span: SimpleSpan) -> Result<Type, Error> {
@@ -35,28 +39,68 @@ impl Context {
         })
     }
 
-    pub fn push<S>(&mut self, name: S, ty: Type)
+    pub fn push_term_var<S>(&mut self, name: S, ty: Type)
     where
         S: Into<String>,
     {
-        self.0.push(Entry(name.into(), ty));
+        self.0.push(Entry::TermVar(name.into(), ty));
+    }
+
+    pub fn push_scope(&mut self) {
+        self.0.push(Entry::Scope);
+    }
+
+    pub fn pop_scope(&mut self) {
+        loop {
+            if let Some(entry) = self.0.pop()
+                && matches!(entry, Entry::Scope)
+            {
+                break;
+            }
+        }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Entry(String, Type);
+pub enum Entry {
+    TermVar(String, Type),
+    Scope,
+}
 
-#[derive(Clone, Eq, Hash, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub struct TypeVar(usize);
 
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub enum Type {
+    Core(CoreType),
     Constructor(String),
+    Generic(Box<Type>, Vec<Type>),
+    Variable(String),
     Tuple(Vec<Type>),
     Fn(Func),
 }
 
 impl Type {
+    pub fn boolean() -> Self {
+        Self::Core(CoreType::Boolean)
+    }
+
+    pub fn float() -> Self {
+        Self::Core(CoreType::Float)
+    }
+
+    pub fn integer() -> Self {
+        Self::Core(CoreType::Integer)
+    }
+
+    pub fn string() -> Self {
+        Self::Core(CoreType::String)
+    }
+
+    pub fn range() -> Self {
+        Self::Core(CoreType::Range)
+    }
+
     pub fn constructor<S>(s: S) -> Self
     where
         S: Into<String>,
@@ -64,6 +108,12 @@ impl Type {
         Self::Constructor(s.into())
     }
 
+    pub fn variable<S>(s: S) -> Self
+    where
+        S: Into<String>,
+    {
+        Self::Variable(s.into())
+    }
     pub fn unit() -> Self {
         Self::Tuple(Vec::with_capacity(0))
     }
@@ -76,7 +126,18 @@ impl Type {
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
+            Self::Core(core_type) => &format!("{core_type}"),
             Self::Constructor(name) => name,
+            Self::Generic(ty, ty_vars) => &format!(
+                "{}<{}>",
+                ty,
+                ty_vars
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            ),
+            Self::Variable(variable) => variable,
             Self::Tuple(types) => &format!(
                 "({})",
                 types
@@ -95,9 +156,14 @@ impl Display for Type {
 impl From<crate::types::Type<'_>> for Type {
     fn from(value: crate::types::Type) -> Self {
         match value {
-            crate::types::Type::Concrete(concrete_type) => {
-                Self::constructor(concrete_type.ident.to_string())
-            }
+            crate::types::Type::Concrete(concrete_type) => match concrete_type.ident.as_str() {
+                "Boolean" => Self::boolean(),
+                "Float" => Self::float(),
+                "Integer" => Self::integer(),
+                "String" => Self::string(),
+                "Range" => Self::range(),
+                name => Self::constructor(name.to_string()),
+            },
             crate::types::Type::Tuple(types) => {
                 let types: Vec<_> = types.into_iter().map(Into::into).collect();
 
@@ -109,6 +175,29 @@ impl From<crate::types::Type<'_>> for Type {
             }
             _ => todo!("Only concrete types can be convereted to crate::check::Type right now"),
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq)]
+pub enum CoreType {
+    Boolean,
+    Float,
+    Integer,
+    String,
+    Range,
+}
+
+impl Display for CoreType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Boolean => "Boolean",
+            Self::Float => "Float",
+            Self::Integer => "Integer",
+            Self::String => "String",
+            Self::Range => "Range",
+        };
+
+        write!(f, "{s}")
     }
 }
 
@@ -136,12 +225,14 @@ impl Func {
     }
 }
 
+pub struct Env {}
+
 #[derive(Debug)]
 pub struct Checker {
     counter: usize,
-    pub(crate) type_constructors: HashMap<String, Type>,
-    pub(crate) value_constructors: HashMap<String, String>,
-    pub(crate) functions: HashMap<String, Func>,
+    pub(crate) type_constructors: HashMap<String, (Type, Vec<Type>)>,
+    pub(crate) value_constructors: HashMap<String, Type>,
+    pub(crate) variables: HashMap<String, Type>,
 }
 
 impl Checker {
@@ -150,58 +241,36 @@ impl Checker {
             counter: 0,
             type_constructors: HashMap::new(),
             value_constructors: HashMap::new(),
-            functions: HashMap::new(),
+            variables: HashMap::new(),
         };
 
-        let boolean = Type::constructor("Boolean");
-        let float = Type::constructor("Float");
-        let integer = Type::constructor("Integer");
-        let string = Type::constructor("String");
-        let range = Type::constructor("Range");
-
-        this.type_constructors.insert("Boolean".to_owned(), boolean);
-        this.type_constructors.insert("Float".to_owned(), float);
-        this.type_constructors.insert("Integer".to_owned(), integer);
         this.type_constructors
-            .insert("String".to_owned(), string.clone());
-        this.type_constructors.insert("Range".to_owned(), range);
+            .insert("Boolean".to_owned(), (Type::boolean(), vec![]));
+        this.type_constructors
+            .insert("Float".to_owned(), (Type::float(), vec![]));
+        this.type_constructors
+            .insert("Integer".to_owned(), (Type::integer(), vec![]));
+        this.type_constructors
+            .insert("String".to_owned(), (Type::string(), vec![]));
+        this.type_constructors
+            .insert("Range".to_owned(), (Type::range(), vec![]));
 
-        this.functions.insert(
+        this.type_constructors.insert(
+            "List".to_owned(),
+            (Type::constructor("list"), vec![Type::variable("t")]),
+        );
+
+        this.variables.insert(
             "print_line".to_owned(),
-            Func::new("print_line".to_owned(), vec![string], vec![], Type::unit()),
+            Type::Fn(Func::new(
+                "print_line".to_owned(),
+                vec![Type::string()],
+                vec![],
+                Type::unit(),
+            )),
         );
 
         this
-    }
-
-    pub fn boolean(&self) -> &Type {
-        self.type_constructors
-            .get("Boolean")
-            .expect("Boolean should be added during construction")
-    }
-
-    pub fn float(&self) -> &Type {
-        self.type_constructors
-            .get("Float")
-            .expect("Float should be added during construction")
-    }
-
-    pub fn integer(&self) -> &Type {
-        self.type_constructors
-            .get("Integer")
-            .expect("Integer should be added during construction")
-    }
-
-    pub fn string(&self) -> &Type {
-        self.type_constructors
-            .get("String")
-            .expect("String should be added during construction")
-    }
-
-    pub fn range(&self) -> &Type {
-        self.type_constructors
-            .get("Range")
-            .expect("Range should be added during construction")
     }
 
     pub fn create_type_var(&mut self) -> TypeVar {
@@ -298,8 +367,8 @@ impl Checker {
                     return Err(error.finish());
                 }
 
-                self.functions
-                    .insert(name.clone(), Func::new(name, pos, kw, ret));
+                self.variables
+                    .insert(name.clone(), Type::Fn(Func::new(name, pos, kw, ret)));
             }
         }
 
@@ -307,9 +376,9 @@ impl Checker {
         for item in items {
             if let Item::Fn(item_fn) = item {
                 let mut context = Context(
-                    self.functions
+                    self.variables
                         .iter()
-                        .map(|(name, func)| Entry(name.clone(), Type::Fn(func.clone())))
+                        .map(|(name, ty)| Entry::TermVar(name.clone(), ty.clone()))
                         .collect(),
                 );
 
@@ -319,7 +388,7 @@ impl Checker {
                     .iter()
                     .chain(item_fn.signature.keyword_params.iter())
                 {
-                    context.push(param.ident.to_string(), param.ty.clone().into());
+                    context.push_term_var(param.ident.to_string(), param.ty.clone().into());
                 }
 
                 item_fn.infer(self, &mut context)?;

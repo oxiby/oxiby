@@ -1,6 +1,8 @@
 use chumsky::span::SimpleSpan;
 
+use crate::check::{self, Checker, Context, Infer};
 use crate::compiler::{Scope, WriteRuby};
+use crate::error::Error;
 use crate::expr::Expr;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -20,5 +22,42 @@ impl WriteRuby for ExprList<'_> {
             }
         }
         scope.fragment("]");
+    }
+}
+
+impl Infer for ExprList<'_> {
+    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+        let (inferred, span) = match self.exprs.first() {
+            Some(expr) => (expr.infer(checker, context)?, expr.span()),
+            None => {
+                return Ok(check::Type::Generic(
+                    Box::new(check::Type::constructor("List")),
+                    vec![check::Type::unit()],
+                ));
+            }
+        };
+
+        for expr in self.exprs.iter().skip(1) {
+            let next_inferred = expr.infer(checker, context)?;
+
+            if inferred != next_inferred {
+                return Err(Error::type_mismatch()
+                    .detail("All list elements must be of the same type", self.span)
+                    .with_context(
+                        &format!("The first element of this list is of type `{inferred}`..."),
+                        span,
+                    )
+                    .with_context(
+                        &format!("...but this element of the list is of type `{next_inferred}`."),
+                        expr.span(),
+                    )
+                    .finish());
+            }
+        }
+
+        Ok(check::Type::Generic(
+            Box::new(check::Type::constructor("List")),
+            vec![inferred],
+        ))
     }
 }

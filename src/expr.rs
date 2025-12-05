@@ -532,13 +532,14 @@ impl Infer for Expr<'_> {
     fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
         let ty = match self {
             // Literals
-            Expr::Boolean(..) => checker.boolean().clone(),
-            Expr::Float(..) => checker.float().clone(),
-            Expr::Integer(..) => checker.integer().clone(),
-            Expr::String(..) => checker.string().clone(),
-            Expr::Range(..) => checker.range().clone(),
+            Expr::Boolean(..) => check::Type::boolean(),
+            Expr::Float(..) => check::Type::float(),
+            Expr::Integer(..) => check::Type::integer(),
+            Expr::String(..) => check::Type::string(),
+            Expr::Range(..) => check::Type::range(),
 
             // Compound primitives
+            Expr::List(expr_list) => expr_list.infer(checker, context)?,
             Expr::Tuple(expr_tuple) => expr_tuple.infer(checker, context)?,
 
             // Identifiers
@@ -548,7 +549,11 @@ impl Infer for Expr<'_> {
             Expr::Call(expr_call) => expr_call.infer(checker, context)?,
 
             // Control flow
+            Expr::Break(expr_break) => expr_break.infer(checker, context)?,
             Expr::Conditional(expr_conditional) => expr_conditional.infer(checker, context)?,
+            Expr::Continue(..) => check::Type::unit(),
+            Expr::ForLoop(expr_for_loop) => expr_for_loop.infer(checker, context)?,
+            Expr::Return(expr_return) => expr_return.infer(checker, context)?,
 
             // Patterns
             Expr::Let(expr_let) => expr_let.infer(checker, context)?,
@@ -598,9 +603,9 @@ impl Infer for ExprBinary<'_> {
             | Operator::LtEq
             | Operator::GtEq
             | Operator::Lt
-            | Operator::Gt => check::Type::constructor("Boolean"),
+            | Operator::Gt => check::Type::boolean(),
             Operator::Mul | Operator::Div | Operator::Mod | Operator::Add | Operator::Sub => {
-                check::Type::constructor("Integer")
+                check::Type::integer()
             }
             Operator::Not => unreachable!("Cannot have a binary `Not` expression."),
         })

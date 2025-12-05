@@ -180,8 +180,8 @@ impl Infer for ExprCall<'_> {
                                 return Err(Error::type_mismatch()
                                     .detail(
                                         &format!(
-                                            "Argument was expected to be `{ty}` but was \
-                                             `{expr_ty}`."
+                                            "Argument was expected to be `{ty:?}` but was \
+                                             `{expr_ty:?}`."
                                         ),
                                         expr.span(),
                                     )

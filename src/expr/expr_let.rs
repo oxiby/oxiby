@@ -75,10 +75,12 @@ impl Infer for ExprLet<'_> {
         match &self.pattern {
             Pattern::Ident(pattern_ident) => {
                 inferred = self.body.infer(checker, context)?;
-                context.push(pattern_ident.ident.to_string(), inferred.clone());
+                context.push_term_var(pattern_ident.ident.to_string(), inferred.clone());
             }
             Pattern::Literal(_) | Pattern::Wildcard => (),
-            pattern => todo!("Type checking is not yet implemented for pattern {pattern:?}"),
+            pattern => todo!(
+                "Type checking for let bindings is not yet implemented for pattern {pattern:?}"
+            ),
         }
 
         Ok(inferred)
