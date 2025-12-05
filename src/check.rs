@@ -157,12 +157,14 @@ impl Checker {
         let float = Type::constructor("Float");
         let integer = Type::constructor("Integer");
         let string = Type::constructor("String");
+        let range = Type::constructor("Range");
 
         this.type_constructors.insert("Boolean".to_owned(), boolean);
         this.type_constructors.insert("Float".to_owned(), float);
         this.type_constructors.insert("Integer".to_owned(), integer);
         this.type_constructors
             .insert("String".to_owned(), string.clone());
+        this.type_constructors.insert("Range".to_owned(), range);
 
         this.functions.insert(
             "print_line".to_owned(),
@@ -170,6 +172,36 @@ impl Checker {
         );
 
         this
+    }
+
+    pub fn boolean(&self) -> &Type {
+        self.type_constructors
+            .get("Boolean")
+            .expect("Boolean should be added during construction")
+    }
+
+    pub fn float(&self) -> &Type {
+        self.type_constructors
+            .get("Float")
+            .expect("Float should be added during construction")
+    }
+
+    pub fn integer(&self) -> &Type {
+        self.type_constructors
+            .get("Integer")
+            .expect("Integer should be added during construction")
+    }
+
+    pub fn string(&self) -> &Type {
+        self.type_constructors
+            .get("String")
+            .expect("String should be added during construction")
+    }
+
+    pub fn range(&self) -> &Type {
+        self.type_constructors
+            .get("Range")
+            .expect("Range should be added during construction")
     }
 
     pub fn create_type_var(&mut self) -> TypeVar {

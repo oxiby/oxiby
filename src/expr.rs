@@ -532,14 +532,17 @@ impl Infer for Expr<'_> {
     fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
         let ty = match self {
             // Literals
-            Expr::Boolean(..) => check::Type::constructor("Boolean"),
-            Expr::Float(..) => check::Type::constructor("Float"),
-            Expr::Integer(..) => check::Type::constructor("Integer"),
-            Expr::String(..) => check::Type::constructor("String"),
-            Expr::ExprIdent(ident) => context.find(ident.as_str(), self.span())?,
+            Expr::Boolean(..) => checker.boolean().clone(),
+            Expr::Float(..) => checker.float().clone(),
+            Expr::Integer(..) => checker.integer().clone(),
+            Expr::String(..) => checker.string().clone(),
+            Expr::Range(..) => checker.range().clone(),
 
             // Compound primitives
             Expr::Tuple(expr_tuple) => expr_tuple.infer(checker, context)?,
+
+            // Identifiers
+            Expr::ExprIdent(ident) => context.find(ident.as_str(), self.span())?,
 
             // Calls
             Expr::Call(expr_call) => expr_call.infer(checker, context)?,
