@@ -197,6 +197,7 @@ pub fn report_errors(
                 Label::new((file_name.to_string(), error_context.span.into_range()))
                     .with_message(error_context.message)
                     .with_color(Color::Yellow)
+                    .with_order(1)
             }))
             .finish()
             .eprint(sources([(file_name.to_string(), source.to_string())]))?;
