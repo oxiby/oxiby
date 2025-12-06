@@ -6,7 +6,7 @@ use std::fmt::Display;
 use chumsky::span::{SimpleSpan, Span};
 
 use crate::error::Error;
-use crate::item::Item;
+use crate::item::{Item, ItemFn};
 
 pub trait Infer {
     fn infer(&self, checker: &Checker, context: &mut Context) -> Result<Type, Error>;
@@ -72,33 +72,42 @@ pub struct TypeVar(usize);
 
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub enum Type {
-    Core(CoreType),
+    Primitive(PrimitiveType),
     Constructor(String),
     Generic(Box<Type>, Vec<Type>),
     Variable(String),
     Tuple(Vec<Type>),
+    TupleStruct(Box<Type>, Vec<Type>),
+    RecordStruct(Box<Type>, Vec<(String, Type)>),
     Fn(Func),
 }
 
 impl Type {
     pub fn boolean() -> Self {
-        Self::Core(CoreType::Boolean)
+        Self::Primitive(PrimitiveType::Boolean)
     }
 
     pub fn float() -> Self {
-        Self::Core(CoreType::Float)
+        Self::Primitive(PrimitiveType::Float)
     }
 
     pub fn integer() -> Self {
-        Self::Core(CoreType::Integer)
+        Self::Primitive(PrimitiveType::Integer)
     }
 
     pub fn string() -> Self {
-        Self::Core(CoreType::String)
+        Self::Primitive(PrimitiveType::String)
     }
 
     pub fn range() -> Self {
-        Self::Core(CoreType::Range)
+        Self::Primitive(PrimitiveType::Range)
+    }
+
+    pub fn list() -> Self {
+        Self::Generic(
+            Box::new(Self::constructor("List")),
+            vec![Self::variable("t")],
+        )
     }
 
     pub fn constructor<S>(s: S) -> Self
@@ -134,7 +143,7 @@ impl Type {
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
-            Self::Core(core_type) => &format!("{core_type}"),
+            Self::Primitive(primitive_type) => &format!("{primitive_type}"),
             Self::Constructor(name) => name,
             Self::Generic(ty, ty_vars) => &format!(
                 "{}<{}>",
@@ -151,6 +160,22 @@ impl Display for Type {
                 types
                     .iter()
                     .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Self::TupleStruct(ty, fields) => &format!(
+                "{ty} {{ {} }}",
+                fields
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Self::RecordStruct(ty, fields) => &format!(
+                "{ty} {{ {} }}",
+                fields
+                    .iter()
+                    .map(|field| format!("{}: {}", field.0, field.1))
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
@@ -187,7 +212,7 @@ impl From<crate::types::Type<'_>> for Type {
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq)]
-pub enum CoreType {
+pub enum PrimitiveType {
     Boolean,
     Float,
     Integer,
@@ -195,7 +220,7 @@ pub enum CoreType {
     Range,
 }
 
-impl Display for CoreType {
+impl Display for PrimitiveType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             Self::Boolean => "Boolean",
@@ -233,13 +258,25 @@ impl Func {
     }
 }
 
-pub struct Env {}
+#[derive(Debug)]
+pub struct TypeMembers {
+    pub(crate) value_constructors: HashMap<String, Type>,
+    pub(crate) functions: HashMap<String, Type>,
+}
+
+impl TypeMembers {
+    pub fn new() -> Self {
+        Self {
+            value_constructors: HashMap::new(),
+            functions: HashMap::new(),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Checker {
     counter: usize,
-    pub(crate) type_constructors: HashMap<String, (Type, Vec<Type>)>,
-    pub(crate) value_constructors: HashMap<String, Type>,
+    pub(crate) type_constructors: HashMap<String, (Type, TypeMembers)>,
     pub(crate) variables: HashMap<String, Type>,
 }
 
@@ -248,25 +285,22 @@ impl Checker {
         let mut this = Self {
             counter: 0,
             type_constructors: HashMap::new(),
-            value_constructors: HashMap::new(),
             variables: HashMap::new(),
         };
 
         this.type_constructors
-            .insert("Boolean".to_owned(), (Type::boolean(), vec![]));
+            .insert("Boolean".to_owned(), (Type::boolean(), TypeMembers::new()));
         this.type_constructors
-            .insert("Float".to_owned(), (Type::float(), vec![]));
+            .insert("Float".to_owned(), (Type::float(), TypeMembers::new()));
         this.type_constructors
-            .insert("Integer".to_owned(), (Type::integer(), vec![]));
+            .insert("Integer".to_owned(), (Type::integer(), TypeMembers::new()));
         this.type_constructors
-            .insert("String".to_owned(), (Type::string(), vec![]));
+            .insert("String".to_owned(), (Type::string(), TypeMembers::new()));
         this.type_constructors
-            .insert("Range".to_owned(), (Type::range(), vec![]));
+            .insert("Range".to_owned(), (Type::range(), TypeMembers::new()));
 
-        this.type_constructors.insert(
-            "List".to_owned(),
-            (Type::constructor("list"), vec![Type::variable("t")]),
-        );
+        this.type_constructors
+            .insert("List".to_owned(), (Type::list(), TypeMembers::new()));
 
         this.variables.insert(
             "print_line".to_owned(),
@@ -290,91 +324,57 @@ impl Checker {
     }
 
     pub fn check(&mut self, items: Vec<Item>) -> Result<(), Error> {
-        // First pass: Collect function signatures.
+        // First pass: Collect declarations.
         for item in &items {
             if let Item::Fn(item_fn) = item {
-                let pos: Vec<_> = item_fn
-                    .signature
-                    .positional_params
-                    .iter()
-                    .cloned()
-                    .map(|param| param.ty.into())
-                    .collect();
+                let (name, function) = collect_fn(item_fn)?;
 
-                let kw: Vec<_> = item_fn
-                    .signature
-                    .keyword_params
-                    .iter()
-                    .cloned()
-                    .map(|param| (param.ident.to_string(), param.ty.into()))
-                    .collect();
+                self.variables .insert(name, function);
+            } else if let Item::Struct(item_struct) = item {
+                let mut ty: Type = item_struct.ty.clone().into();
 
-                let ret = item_fn
-                    .signature
-                    .return_ty
-                    .clone()
-                    .map_or_else(Type::unit, Into::into);
+                let name = match ty {
+                    Type::Primitive(primitive_type) => {
+                        return Err(Error::build("Duplicate type definition")
+                            .with_detail(
+                                &format!(
+                                    "This type name conflicts with the primitive type \
+                                     `{primitive_type}`."
+                                ),
+                                item_struct.ty.span().unwrap_or((0..0).into()),
+                            )
+                            .finish());
+                    }
+                    Type::Constructor(ref name) => name.clone(),
+                    _ => todo!("Type {ty} is not yet supported by the type checker"),
+                };
 
-                let name = item_fn.signature.name.to_string();
-
-                if name == "main" && !(pos.is_empty() && kw.is_empty() && ret.is_unit()) {
-                    let mut error = Error::build("Invalid signature for `main`").with_detail(
-                        "The `main` function cannot have input or output.",
-                        item_fn.signature.span,
+                if let Some(fields) = item_struct.tuple_fields() {
+                    ty = Type::TupleStruct(
+                        Box::new(ty),
+                        fields.iter().map(|field| field.ty.clone().into()).collect(),
                     );
-
-                    if !pos.is_empty() {
-                        error = error.with_context(
-                            if pos.len() == 1 {
-                                "This positional parameter is not allowed."
-                            } else {
-                                "These positional parameters are not allowed."
-                            },
-                            item_fn
-                                .signature
-                                .positional_params
-                                .iter()
-                                .map(|fn_param| fn_param.span)
-                                .reduce(|merged, span| merged.union(span))
-                                .expect("should be called on non-empty positional params"),
-                        );
-                    }
-
-                    if !kw.is_empty() {
-                        error = error.with_context(
-                            if kw.len() == 1 {
-                                "This keyword parameter is not allowed."
-                            } else {
-                                "These keyword parameters are not allowed."
-                            },
-                            item_fn
-                                .signature
-                                .keyword_params
-                                .iter()
-                                .map(|fn_param| fn_param.span)
-                                .reduce(|merged, span| merged.union(span))
-                                .expect("should be called on non-empty keyword params"),
-                        );
-                    }
-
-                    if !ret.is_unit() {
-                        error = error.with_context(
-                            "Must be `()` or explicit return type must be omitted.",
-                            item_fn
-                                .signature
-                                .return_ty
-                                .as_ref()
-                                .expect("should be called on a non-unit type")
-                                .span()
-                                .expect("should be called on a non-unit type"),
-                        );
-                    }
-
-                    return Err(error.finish());
+                } else if let Some(fields) = item_struct.record_fields() {
+                    ty = Type::RecordStruct(
+                        Box::new(ty),
+                        fields
+                            .iter()
+                            .map(|field| (field.name.to_string(), field.ty.clone().into()))
+                            .collect(),
+                    );
                 }
 
-                self.variables
-                    .insert(name.clone(), Type::Fn(Func::new(name, pos, kw, ret)));
+                let mut members = TypeMembers::new();
+
+                if let Some(functions) = &item_struct.fns {
+                    for function in functions {
+                        let (name, func) = collect_fn(function)?;
+
+                        members.functions.insert(name, func);
+                    }
+                }
+
+                self.type_constructors.insert(name.clone(), (ty, members));
             }
         }
 
@@ -403,4 +403,88 @@ impl Checker {
 
         Ok(())
     }
+}
+
+fn collect_fn(item_fn: &ItemFn<'_>) -> Result<(String, Type), Error> {
+    let pos: Vec<_> = item_fn
+        .signature
+        .positional_params
+        .iter()
+        .cloned()
+        .map(|param| param.ty.into())
+        .collect();
+
+    let kw: Vec<_> = item_fn
+        .signature
+        .keyword_params
+        .iter()
+        .cloned()
+        .map(|param| (param.ident.to_string(), param.ty.into()))
+        .collect();
+
+    let ret = item_fn
+        .signature
+        .return_ty
+        .clone()
+        .map_or_else(Type::unit, Into::into);
+
+    let name = item_fn.signature.name.to_string();
+
+    if name == "main" && !(pos.is_empty() && kw.is_empty() && ret.is_unit()) {
+        let mut error = Error::build("Invalid signature for `main`").with_detail(
+            "The `main` function cannot have input or output.",
+            item_fn.signature.span,
+        );
+
+        if !pos.is_empty() {
+            error = error.with_context(
+                if pos.len() == 1 {
+                    "This positional parameter is not allowed."
+                } else {
+                    "These positional parameters are not allowed."
+                },
+                item_fn
+                    .signature
+                    .positional_params
+                    .iter()
+                    .map(|fn_param| fn_param.span)
+                    .reduce(|merged, span| merged.union(span))
+                    .expect("should be called on non-empty positional params"),
+            );
+        }
+
+        if !kw.is_empty() {
+            error = error.with_context(
+                if kw.len() == 1 {
+                    "This keyword parameter is not allowed."
+                } else {
+                    "These keyword parameters are not allowed."
+                },
+                item_fn
+                    .signature
+                    .keyword_params
+                    .iter()
+                    .map(|fn_param| fn_param.span)
+                    .reduce(|merged, span| merged.union(span))
+                    .expect("should be called on non-empty keyword params"),
+            );
+        }
+
+        if !ret.is_unit() {
+            error = error.with_context(
+                "Must be `()` or explicit return type must be omitted.",
+                item_fn
+                    .signature
+                    .return_ty
+                    .as_ref()
+                    .expect("should be called on a non-unit type")
+                    .span()
+                    .expect("should be called on a non-unit type"),
+            );
+        }
+
+        return Err(error.finish());
+    }
+
+    Ok((name.clone(), Type::Fn(Func::new(name, pos, kw, ret))))
 }

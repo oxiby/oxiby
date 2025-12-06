@@ -10,10 +10,10 @@ use crate::types::Type;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ItemStruct<'a> {
-    visibility: Visibility,
-    ty: Type<'a>,
-    fields: StructFields<'a>,
-    fns: Option<Vec<ItemFn<'a>>>,
+    pub(crate) visibility: Visibility,
+    pub(crate) ty: Type<'a>,
+    pub(crate) fields: StructFields<'a>,
+    pub(crate) fns: Option<Vec<ItemFn<'a>>>,
 }
 
 impl<'a> ItemStruct<'a> {
@@ -70,6 +70,22 @@ impl<'a> ItemStruct<'a> {
             })
             .labelled("struct")
             .as_context()
+    }
+
+    pub fn tuple_fields(&self) -> Option<&[TupleField<'_>]> {
+        if let StructFields::Tuple(fields) = &self.fields {
+            Some(fields)
+        } else {
+            None
+        }
+    }
+
+    pub fn record_fields(&self) -> Option<&[RecordField<'_>]> {
+        if let StructFields::Record(fields) = &self.fields {
+            Some(fields)
+        } else {
+            None
+        }
     }
 }
 
