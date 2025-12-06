@@ -46,7 +46,13 @@ impl<'a> ItemStruct<'a> {
                     .separated_by(just(Token::Comma))
                     .allow_trailing()
                     .collect::<Vec<_>>()
-                    .map(StructFields::Record)
+                    .map(|fields| {
+                        if fields.is_empty() {
+                            StructFields::Unit
+                        } else {
+                            StructFields::Record(fields)
+                        }
+                    })
                     .then(
                         ItemFn::parser(make_input.clone(), true)
                             .repeated()
