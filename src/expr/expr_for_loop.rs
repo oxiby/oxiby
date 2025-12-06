@@ -68,23 +68,19 @@ impl Infer for ExprForLoop<'_> {
     fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
         let element_type = match self.items.infer(checker, context)? {
             ref items_type @ check::Type::Generic(ref constructor_type, ref generic_types) => {
-                match constructor_type.constructor_name() {
-                    Some(name) => {
-                        if name == "List" {
-                            vec![generic_types[0].clone()]
-                        } else if name == "Map" {
-                            vec![generic_types[0].clone(), generic_types[1].clone()]
-                        } else {
-                            return Err(Error::build("Type not iterable")
-                                .with_detail(
-                                    &format!("Type `{items_type}` is not iterable."),
-                                    self.items.span(),
-                                )
-                                .with_help("Try surrounding the expression with `[` and `]`.")
-                                .finish());
-                        }
-                    }
-                    None => return Err(Error::build("TODO").finish()),
+                let name = constructor_type.name();
+                if name == "List" {
+                    vec![generic_types[0].clone()]
+                } else if name == "Map" {
+                    vec![generic_types[0].clone(), generic_types[1].clone()]
+                } else {
+                    return Err(Error::build("Type not iterable")
+                        .with_detail(
+                            &format!("Type `{items_type}` is not iterable."),
+                            self.items.span(),
+                        )
+                        .with_help("Try surrounding the expression with `[` and `]`.")
+                        .finish());
                 }
             }
             items_type => {

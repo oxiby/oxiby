@@ -545,7 +545,20 @@ impl Infer for Expr<'_> {
 
             // Identifiers
             Expr::ExprIdent(ident) => context.find(ident.as_str(), self.span())?,
+            Expr::TypeIdent(expr_type_ident) => {
+                match checker.type_constructors.get(expr_type_ident.as_str()) {
+                    Some((ty, _)) => ty.clone(),
+                    None => {
+                        return Err(Error::build("Missing type")
+                            .with_detail("Type `{ty}` is not in scope.", expr_type_ident.span)
+                            .with_help("You might need to import this type from another module.")
+                            .finish());
+                    }
+                }
+            }
 
+            // Member access
+            Expr::Field(expr_field) => expr_field.infer(checker, context)?,
             // Calls
             Expr::Call(expr_call) => expr_call.infer(checker, context)?,
 
@@ -650,6 +663,55 @@ impl WriteRuby for ExprField<'_> {
         }
 
         self.rhs.write_ruby(scope);
+    }
+}
+
+impl Infer for ExprField<'_> {
+    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+        if let Expr::TypeIdent(ref expr_type_ident) = *self.lhs {
+            let Some((ty, members)) = checker.type_constructors.get(expr_type_ident.as_str())
+            else {
+                return Err(Error::build("Missing type")
+                    .with_detail("Type `{ty}` is not in scope.", expr_type_ident.span)
+                    .with_help("You might need to import this type from another module.")
+                    .finish());
+            };
+
+            if let Expr::Call(ref expr_call) = *self.rhs {
+                let Some(_function) = members.functions.get(expr_call.name.as_str()) else {
+                    return Err(Error::build("Missing method")
+                        .with_detail(
+                            &format!(
+                                "Type `{ty}` does not have a method `{}`.",
+                                expr_call.name.as_str()
+                            ),
+                            expr_type_ident.span,
+                        )
+                        .finish());
+                };
+            }
+        } else if let Expr::ExprIdent(ref expr_ident) = *self.lhs {
+            let ty = context.find(expr_ident.as_str(), expr_ident.span)?;
+
+            dbg!(&ty);
+            let (_, members) = checker.type_constructors.get(&ty.name()).expect("wtf2");
+
+            if let Expr::Call(ref expr_call) = *self.rhs {
+                let Some(_function) = members.functions.get(expr_call.name.as_str()) else {
+                    return Err(Error::build("Missing method")
+                        .with_detail(
+                            &format!(
+                                "Type `{ty}` does not have a method `{}`.",
+                                expr_call.name.as_str()
+                            ),
+                            expr_ident.span,
+                        )
+                        .finish());
+                };
+            }
+        }
+
+        Ok(check::Type::string())
     }
 }
 

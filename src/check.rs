@@ -117,11 +117,16 @@ impl Type {
         Self::Constructor(s.into())
     }
 
-    pub fn constructor_name(&self) -> Option<&str> {
-        if let Self::Constructor(name) = self {
-            Some(name)
-        } else {
-            None
+    pub fn name(&self) -> String {
+        match self {
+            Self::Primitive(primitive_type) => primitive_type.to_string(),
+            Self::Constructor(name) => name.to_string(),
+            Self::Generic(ty, _) | Self::TupleStruct(ty, _) | Self::RecordStruct(ty, _) => {
+                ty.to_string()
+            }
+            Self::Variable(variable) => variable.to_string(),
+            Self::Tuple(_) => "<tuple name placeholder>".to_string(),
+            Self::Fn(_) => "<function name placeholder>".to_string(),
         }
     }
 
@@ -163,22 +168,7 @@ impl Display for Type {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Self::TupleStruct(ty, fields) => &format!(
-                "{ty} {{ {} }}",
-                fields
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            Self::RecordStruct(ty, fields) => &format!(
-                "{ty} {{ {} }}",
-                fields
-                    .iter()
-                    .map(|field| format!("{}: {}", field.0, field.1))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
+            Self::TupleStruct(ty, _) | Self::RecordStruct(ty, _) => &format!("{ty}",),
             Self::Fn(func) => &format!("<function \"{}\">", func.name),
         };
 
@@ -329,7 +319,7 @@ impl Checker {
             if let Item::Fn(item_fn) = item {
                 let (name, function) = collect_fn(item_fn)?;
 
-                self.variables .insert(name, function);
+                self.variables.insert(name, function);
             } else if let Item::Struct(item_struct) = item {
                 let mut ty: Type = item_struct.ty.clone().into();
 

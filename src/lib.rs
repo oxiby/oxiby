@@ -1,5 +1,6 @@
 #![warn(clippy::pedantic)]
 #![allow(clippy::missing_errors_doc)]
+#![allow(clippy::result_large_err)]
 #![allow(clippy::too_many_lines)]
 
 use chumsky::span::SimpleSpan;

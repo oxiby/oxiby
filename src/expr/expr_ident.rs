@@ -64,6 +64,10 @@ impl<'a> ExprTypeIdent<'a> {
             span: extra.span(),
         })
     }
+
+    pub fn as_str(&self) -> &str {
+        self.ident.as_str()
+    }
 }
 
 impl WriteRuby for ExprTypeIdent<'_> {
