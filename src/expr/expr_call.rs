@@ -118,7 +118,7 @@ impl<'a> ExprCall<'a> {
         !self.keyword_args.is_empty()
     }
 
-    pub fn infer_method(
+    pub fn infer_function(
         &self,
         checker: &Checker,
         context: &mut Context,
@@ -218,64 +218,30 @@ impl Infer for ExprCall<'_> {
     fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
         let name = self.name.as_str();
 
-        match context.find(name, self.span)? {
-            check::Type::Fn(func) => {
-                for pair in func
-                    .positional_params
-                    .iter()
-                    .zip_longest(self.positional_args.iter())
-                {
-                    match pair {
-                        EitherOrBoth::Both(ty, expr) => {
-                            let expr_ty = expr.infer(checker, context)?;
-
-                            if *ty != expr_ty {
-                                return Err(Error::type_mismatch()
-                                    .with_detail(
-                                        &format!(
-                                            "Argument was expected to be `{ty}` but was \
-                                             `{expr_ty}`."
-                                        ),
-                                        expr.span(),
-                                    )
-                                    .finish());
-                            }
-                        }
-                        EitherOrBoth::Left(ty) => {
-                            return Err(Error::build("Missing argument")
-                                .with_detail(
-                                    &format!(
-                                        "Function expects argument of type `{ty}` but it was not \
-                                         given."
-                                    ),
-                                    self.span,
-                                )
-                                .finish());
-                        }
-                        EitherOrBoth::Right(expr) => {
-                            let expr_ty = expr.infer(checker, context)?;
-
-                            return Err(Error::build("Extra argument")
-                                .with_detail(
-                                    &format!(
-                                        "Argument of type `{expr_ty}` is not expected by function \
-                                         `{name}`."
-                                    ),
-                                    expr.span(),
-                                )
-                                .finish());
-                        }
-                    }
-                }
-
-                Ok(*func.return_type)
+        if let Some(ty) = context.get(name) {
+            match ty {
+                check::Type::Fn(function) => self.infer_function(checker, context, &function),
+                ty => Err(Error::type_mismatch()
+                    .with_detail(
+                        &format!(
+                            "Value `{name}` is of type `{ty}` but is being called as a function."
+                        ),
+                        self.span,
+                    )
+                    .finish()),
             }
-            ty => Err(Error::type_mismatch()
-                .with_detail(
-                    &format!("Value `{name}` is of type `{ty}` but is being called as a function."),
-                    self.span,
-                )
-                .finish()),
+        } else if let Some((_ty, members)) = checker.type_constructors.get(name) {
+            if let Some(tuple_constructor_ty) = members.value_constructors.get(name) {
+                let check::Type::Fn(function) = tuple_constructor_ty else {
+                    panic!("TODO: Tuple constructor wasn't a function.");
+                };
+
+                self.infer_function(checker, context, function)
+            } else {
+                panic!("TODO: Couldn't find constructor for tuple struct.");
+            }
+        } else {
+            panic!("TODO: Couldn't infer ExprCall.");
         }
     }
 }

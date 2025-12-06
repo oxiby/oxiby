@@ -77,7 +77,6 @@ pub enum Type {
     Generic(Box<Type>, Vec<Type>),
     Variable(String),
     Tuple(Vec<Type>),
-    TupleStruct(Box<Type>, Vec<Type>),
     RecordStruct(Box<Type>, Vec<(String, Type)>),
     Fn(Function),
 }
@@ -121,9 +120,7 @@ impl Type {
         match self {
             Self::Primitive(primitive_type) => primitive_type.to_string(),
             Self::Constructor(name) => name.to_string(),
-            Self::Generic(ty, _) | Self::TupleStruct(ty, _) | Self::RecordStruct(ty, _) => {
-                ty.to_string()
-            }
+            Self::Generic(ty, _) | Self::RecordStruct(ty, _) => ty.to_string(),
             Self::Variable(variable) => variable.to_string(),
             Self::Tuple(_) => "<tuple name placeholder>".to_string(),
             Self::Fn(_) => "<function name placeholder>".to_string(),
@@ -168,7 +165,7 @@ impl Display for Type {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Self::TupleStruct(ty, _) | Self::RecordStruct(ty, _) => &format!("{ty}",),
+            Self::RecordStruct(ty, _) => &format!("{ty}",),
             Self::Fn(func) => &format!("<function \"{}\">", func.name),
         };
 
@@ -196,7 +193,9 @@ impl From<crate::types::Type<'_>> for Type {
                     Self::Tuple(types)
                 }
             }
-            _ => todo!("Only concrete types can be convereted to crate::check::Type right now"),
+            _ => todo!(
+                "Only concrete and tuple types can be convereted to crate::check::Type right now"
+            ),
         }
     }
 }
@@ -370,10 +369,22 @@ impl Checker {
                     _ => todo!("Type {ty} is not yet supported by the type checker"),
                 };
 
+                let mut members = TypeMembers::new();
+
                 if let Some(fields) = item_struct.tuple_fields() {
-                    ty = Type::TupleStruct(
-                        Box::new(ty),
-                        fields.iter().map(|field| field.ty.clone().into()).collect(),
+                    ty = Type::constructor(&name);
+
+                    let member_fields =
+                        fields.iter().map(|field| field.ty.clone().into()).collect();
+
+                    members.value_constructors.insert(
+                        name.clone(),
+                        Type::Fn(Function::r#static(
+                            name.clone(),
+                            member_fields,
+                            Vec::new(),
+                            ty.clone(),
+                        )),
                     );
                 } else if let Some(fields) = item_struct.record_fields() {
                     ty = Type::RecordStruct(
@@ -384,8 +395,6 @@ impl Checker {
                             .collect(),
                     );
                 }
-
-                let mut members = TypeMembers::new();
 
                 if let Some(functions) = &item_struct.fns {
                     for function in functions {

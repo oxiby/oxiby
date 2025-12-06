@@ -732,7 +732,7 @@ impl Infer for ExprField<'_> {
                         .finish());
                 }
 
-                expr_call.infer_method(checker, context, function)?
+                expr_call.infer_function(checker, context, function)?
             } else {
                 todo!(
                     "TODO: Inference for fields where `lhs` is a type identifier and `rhs` isn't \
@@ -783,7 +783,7 @@ impl Infer for ExprField<'_> {
                         .with_help(&format!("Try using the syntax `{lhs_ty}.{name}(...)`."))
                         .finish());
                 }
-                expr_call.infer_method(checker, context, function)?
+                expr_call.infer_function(checker, context, function)?
             } else {
                 todo!(
                     "TODO: Inference for fields where `lhs` is an expression identifier and `rhs` \
