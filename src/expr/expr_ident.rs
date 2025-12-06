@@ -73,5 +73,6 @@ impl<'a> ExprTypeIdent<'a> {
 impl WriteRuby for ExprTypeIdent<'_> {
     fn write_ruby(&self, scope: &mut Scope) {
         self.ident.write_ruby(scope);
+        scope.fragment(".new");
     }
 }

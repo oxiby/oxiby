@@ -662,12 +662,16 @@ pub struct ExprField<'a> {
 
 impl WriteRuby for ExprField<'_> {
     fn write_ruby(&self, scope: &mut Scope) {
-        let self_receiver =
-            matches!(*self.lhs, Expr::ExprIdent(ref expr_ident) if expr_ident.as_str() == "self");
-
-        if !self_receiver {
-            self.lhs.write_ruby(scope);
-            scope.fragment(".");
+        match *self.lhs {
+            Expr::ExprIdent(ref expr_ident) if expr_ident.as_str() == "self" => (),
+            Expr::TypeIdent(ref expr_type_ident) => {
+                scope.fragment(expr_type_ident.as_str());
+                scope.fragment(".");
+            }
+            _ => {
+                self.lhs.write_ruby(scope);
+                scope.fragment(".");
+            }
         }
 
         if let Expr::Integer(_) = *self.rhs {
