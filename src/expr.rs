@@ -549,7 +549,13 @@ impl Infer for Expr<'_> {
                 let name = expr_type_ident.as_str();
 
                 match checker.type_constructors.get(name) {
-                    Some((ty, _)) => ty.clone(),
+                    Some((ty, _)) => match ty {
+                        check::Type::Constructor(_) => ty.clone(),
+                        _ => todo!(
+                            "Under what circumstances is Expr::TypeIdent inferred when it's a \
+                             tuple/record struct?"
+                        ),
+                    },
                     None => {
                         return Err(Error::build("Unknown type")
                             .with_detail(
