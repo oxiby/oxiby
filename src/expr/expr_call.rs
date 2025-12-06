@@ -117,6 +117,59 @@ impl<'a> ExprCall<'a> {
     pub fn has_keyword_args(&self) -> bool {
         !self.keyword_args.is_empty()
     }
+
+    pub fn infer_method(
+        &self,
+        checker: &Checker,
+        context: &mut Context,
+        function: &check::Function,
+    ) -> Result<check::Type, Error> {
+        for pair in function
+            .positional_params
+            .iter()
+            .zip_longest(self.positional_args.iter())
+        {
+            match pair {
+                EitherOrBoth::Both(ty, expr) => {
+                    let expr_ty = expr.infer(checker, context)?;
+
+                    if *ty != expr_ty {
+                        return Err(Error::type_mismatch()
+                            .with_detail(
+                                &format!("Argument was expected to be `{ty}` but was `{expr_ty}`."),
+                                expr.span(),
+                            )
+                            .finish());
+                    }
+                }
+                EitherOrBoth::Left(ty) => {
+                    return Err(Error::build("Missing argument")
+                        .with_detail(
+                            &format!(
+                                "Function expects argument of type `{ty}` but it was not given."
+                            ),
+                            self.span,
+                        )
+                        .finish());
+                }
+                EitherOrBoth::Right(expr) => {
+                    let expr_ty = expr.infer(checker, context)?;
+
+                    return Err(Error::build("Extra argument")
+                        .with_detail(
+                            &format!(
+                                "Argument of type `{expr_ty}` is not expected by function `{}`.",
+                                function.name
+                            ),
+                            expr.span(),
+                        )
+                        .finish());
+                }
+            }
+        }
+
+        Ok(*function.return_type.clone())
+    }
 }
 
 impl WriteRuby for ExprCall<'_> {

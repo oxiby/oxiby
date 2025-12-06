@@ -546,11 +546,16 @@ impl Infer for Expr<'_> {
             // Identifiers
             Expr::ExprIdent(ident) => context.find(ident.as_str(), self.span())?,
             Expr::TypeIdent(expr_type_ident) => {
-                match checker.type_constructors.get(expr_type_ident.as_str()) {
+                let name = expr_type_ident.as_str();
+
+                match checker.type_constructors.get(name) {
                     Some((ty, _)) => ty.clone(),
                     None => {
-                        return Err(Error::build("Missing type")
-                            .with_detail("Type `{ty}` is not in scope.", expr_type_ident.span)
+                        return Err(Error::build("Unknown type")
+                            .with_detail(
+                                &format!("Type `{name}` is not in scope."),
+                                expr_type_ident.span,
+                            )
                             .with_help("You might need to import this type from another module.")
                             .finish());
                     }
@@ -559,6 +564,7 @@ impl Infer for Expr<'_> {
 
             // Member access
             Expr::Field(expr_field) => expr_field.infer(checker, context)?,
+
             // Calls
             Expr::Call(expr_call) => expr_call.infer(checker, context)?,
 
@@ -668,50 +674,121 @@ impl WriteRuby for ExprField<'_> {
 
 impl Infer for ExprField<'_> {
     fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
-        if let Expr::TypeIdent(ref expr_type_ident) = *self.lhs {
-            let Some((ty, members)) = checker.type_constructors.get(expr_type_ident.as_str())
+        let ty: check::Type = if let Expr::TypeIdent(ref expr_type_ident) = *self.lhs {
+            let Some((lhs_ty, members)) = checker.type_constructors.get(expr_type_ident.as_str())
             else {
-                return Err(Error::build("Missing type")
-                    .with_detail("Type `{ty}` is not in scope.", expr_type_ident.span)
+                return Err(Error::build("Unknown type")
+                    .with_detail(
+                        &format!("Type `{}` is not in scope.", expr_type_ident.as_str()),
+                        expr_type_ident.span,
+                    )
                     .with_help("You might need to import this type from another module.")
                     .finish());
             };
 
             if let Expr::Call(ref expr_call) = *self.rhs {
-                let Some(_function) = members.functions.get(expr_call.name.as_str()) else {
-                    return Err(Error::build("Missing method")
+                let name = expr_call.name.as_str();
+
+                let Some(rhs_ty) = members.functions.get(name) else {
+                    return Err(Error::build("Unknown method")
                         .with_detail(
-                            &format!(
-                                "Type `{ty}` does not have a method `{}`.",
-                                expr_call.name.as_str()
-                            ),
-                            expr_type_ident.span,
+                            &format!("Type `{lhs_ty}` does not have a method `{name}`.",),
+                            expr_call.span,
                         )
                         .finish());
                 };
+
+                let check::Type::Fn(function) = rhs_ty else {
+                    return Err(Error::type_mismatch()
+                        .with_detail(
+                            &format!(
+                                "Value `{}` is of type `{lhs_ty}` but is being called as a \
+                                 function.",
+                                rhs_ty.name()
+                            ),
+                            self.span,
+                        )
+                        .finish());
+                };
+
+                if !function.is_static {
+                    return Err(Error::build("Invalid static method call")
+                        .with_detail(
+                            &format!(
+                                "`{name}` is being called as a static method, but it is a \
+                                 instance method."
+                            ),
+                            self.rhs.span(),
+                        )
+                        .with_help(&format!(
+                            "Try calling the method on a value of type `{lhs_ty}`."
+                        ))
+                        .finish());
+                }
+
+                expr_call.infer_method(checker, context, function)?
+            } else {
+                todo!(
+                    "TODO: Inference for fields where `lhs` is a type identifier and `rhs` isn't \
+                     a call."
+                );
             }
         } else if let Expr::ExprIdent(ref expr_ident) = *self.lhs {
-            let ty = context.find(expr_ident.as_str(), expr_ident.span)?;
+            let lhs_ty = context.find(expr_ident.as_str(), expr_ident.span)?;
 
-            dbg!(&ty);
-            let (_, members) = checker.type_constructors.get(&ty.name()).expect("wtf2");
+            let (_, members) = checker.type_constructors.get(&lhs_ty.name()).expect(
+                "Should always exist because we were able to find the type in the context.",
+            );
 
             if let Expr::Call(ref expr_call) = *self.rhs {
-                let Some(_function) = members.functions.get(expr_call.name.as_str()) else {
-                    return Err(Error::build("Missing method")
+                let name = expr_call.name.as_str();
+
+                let Some(rhs_ty) = members.functions.get(name) else {
+                    return Err(Error::build("Unknown method")
                         .with_detail(
-                            &format!(
-                                "Type `{ty}` does not have a method `{}`.",
-                                expr_call.name.as_str()
-                            ),
-                            expr_ident.span,
+                            &format!("Type `{lhs_ty}` does not have a method `{name}`.",),
+                            expr_call.span,
                         )
                         .finish());
                 };
-            }
-        }
 
-        Ok(check::Type::string())
+                let check::Type::Fn(function) = rhs_ty else {
+                    return Err(Error::type_mismatch()
+                        .with_detail(
+                            &format!(
+                                "Value `{}` is of type `{rhs_ty}` but is being called as a \
+                                 function.",
+                                rhs_ty.name()
+                            ),
+                            self.span,
+                        )
+                        .finish());
+                };
+
+                if function.is_static {
+                    return Err(Error::build("Invalid method call")
+                        .with_detail(
+                            &format!(
+                                "`{name}` is being called as an instance method, but it is a \
+                                 static method."
+                            ),
+                            self.rhs.span(),
+                        )
+                        .with_help(&format!("Try using the syntax `{lhs_ty}.{name}(...)`."))
+                        .finish());
+                }
+                expr_call.infer_method(checker, context, function)?
+            } else {
+                todo!(
+                    "TODO: Inference for fields where `lhs` is an expression identifier and `rhs` \
+                     isn't a call."
+                );
+            }
+        } else {
+            todo!("TODO: Inference for fields where `lhs` isn't an identifier.");
+        };
+
+        Ok(ty)
     }
 }
 

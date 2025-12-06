@@ -79,7 +79,7 @@ pub enum Type {
     Tuple(Vec<Type>),
     TupleStruct(Box<Type>, Vec<Type>),
     RecordStruct(Box<Type>, Vec<(String, Type)>),
-    Fn(Func),
+    Fn(Function),
 }
 
 impl Type {
@@ -225,15 +225,31 @@ impl Display for PrimitiveType {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq)]
-pub struct Func {
+pub struct Function {
     pub(crate) name: String,
+    pub(crate) is_static: bool,
     pub(crate) positional_params: Vec<Type>,
     pub(crate) keyword_params: Vec<(String, Type)>,
     pub(crate) return_type: Box<Type>,
 }
 
-impl Func {
+impl Function {
     pub fn new(
+        name: String,
+        is_static: bool,
+        positional_params: Vec<Type>,
+        keyword_params: Vec<(String, Type)>,
+        return_type: Type,
+    ) -> Self {
+        Self {
+            name,
+            is_static,
+            positional_params,
+            keyword_params,
+            return_type: Box::new(return_type),
+        }
+    }
+    pub fn r#static(
         name: String,
         positional_params: Vec<Type>,
         keyword_params: Vec<(String, Type)>,
@@ -241,6 +257,21 @@ impl Func {
     ) -> Self {
         Self {
             name,
+            is_static: true,
+            positional_params,
+            keyword_params,
+            return_type: Box::new(return_type),
+        }
+    }
+    pub fn instance(
+        name: String,
+        positional_params: Vec<Type>,
+        keyword_params: Vec<(String, Type)>,
+        return_type: Type,
+    ) -> Self {
+        Self {
+            name,
+            is_static: false,
             positional_params,
             keyword_params,
             return_type: Box::new(return_type),
@@ -294,7 +325,7 @@ impl Checker {
 
         this.variables.insert(
             "print_line".to_owned(),
-            Type::Fn(Func::new(
+            Type::Fn(Function::r#static(
                 "print_line".to_owned(),
                 vec![Type::string()],
                 vec![],
@@ -420,6 +451,8 @@ fn collect_fn(item_fn: &ItemFn<'_>) -> Result<(String, Type), Error> {
 
     let name = item_fn.signature.name.to_string();
 
+    let is_static = !item_fn.signature.self_param;
+
     if name == "main" && !(pos.is_empty() && kw.is_empty() && ret.is_unit()) {
         let mut error = Error::build("Invalid signature for `main`").with_detail(
             "The `main` function cannot have input or output.",
@@ -476,5 +509,8 @@ fn collect_fn(item_fn: &ItemFn<'_>) -> Result<(String, Type), Error> {
         return Err(error.finish());
     }
 
-    Ok((name.clone(), Type::Fn(Func::new(name, pos, kw, ret))))
+    Ok((
+        name.clone(),
+        Type::Fn(Function::new(name, is_static, pos, kw, ret)),
+    ))
 }
