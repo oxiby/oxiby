@@ -230,7 +230,7 @@ impl Infer for ExprCall<'_> {
                     )
                     .finish()),
             }
-        } else if let Some((_ty, members)) = checker.type_constructors.get(name) {
+        } else if let Some((ty, members)) = checker.type_constructors.get(name) {
             if let Some(tuple_constructor_ty) = members.value_constructors.get(name) {
                 let check::Type::Fn(function) = tuple_constructor_ty else {
                     panic!("TODO: Tuple constructor wasn't a function.");
@@ -238,7 +238,15 @@ impl Infer for ExprCall<'_> {
 
                 self.infer_function(checker, context, function)
             } else {
-                panic!("TODO: Couldn't find constructor for tuple struct.");
+                Err(Error::build("Invalid struct literal")
+                    .with_detail(
+                        &format!(
+                            "Type `{ty}` is not a tuple struct and cannot be constructed with the \
+                             syntax `{ty}(...)`."
+                        ),
+                        self.span,
+                    )
+                    .finish())
             }
         } else {
             panic!("TODO: Couldn't infer ExprCall.");

@@ -543,6 +543,9 @@ impl Infer for Expr<'_> {
             Expr::List(expr_list) => expr_list.infer(checker, context)?,
             Expr::Tuple(expr_tuple) => expr_tuple.infer(checker, context)?,
 
+            // Data structures
+            Expr::Struct(expr_struct) => expr_struct.infer(checker, context)?,
+
             // Identifiers
             Expr::ExprIdent(ident) => context.find(ident.as_str(), self.span())?,
             Expr::TypeIdent(expr_type_ident) => {
@@ -551,10 +554,17 @@ impl Infer for Expr<'_> {
                 match checker.type_constructors.get(name) {
                     Some((ty, _)) => match ty {
                         check::Type::Constructor(_) => ty.clone(),
-                        _ => todo!(
-                            "Under what circumstances is Expr::TypeIdent inferred when it's a \
-                             tuple/record struct?"
-                        ),
+                        _ => {
+                            return Err(Error::build("Invalid struct literal")
+                                .with_detail(
+                                    &format!(
+                                        "Type `{name}` is not a unit struct and cannot be \
+                                         constructed with the syntax `{name}`."
+                                    ),
+                                    expr_type_ident.span,
+                                )
+                                .finish());
+                        }
                     },
                     None => {
                         return Err(Error::build("Unknown type")
