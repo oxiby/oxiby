@@ -1,0 +1,17 @@
+enum E {
+    U,
+    T(String),
+    S {
+        a: String,
+    }
+}
+
+fn main() {
+    let u = E.U
+
+    let t = E.T("T")
+
+    let s = E.S {
+        a = "S",
+    }
+}

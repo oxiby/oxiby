@@ -27,6 +27,7 @@ macro_rules! test_fixture {
 test_fixture!(call, "call");
 test_fixture!(conditional, "conditional");
 test_fixture!(container, "container");
+test_fixture!(enums, "enums");
 test_fixture!(fn_param_combos, "fn_param_combos");
 test_fixture!(functions, "functions");
 test_fixture!(lists, "lists");
@@ -35,6 +36,7 @@ test_fixture!(maps, "maps");
 test_fixture!(patterns, "patterns");
 test_fixture!(result_tuple, "result_tuple");
 test_fixture!(root, "root");
+test_fixture!(structs, "structs");
 test_fixture!(tic_tac_toe, "tic_tac_toe");
 test_fixture!(tour, "tour");
 test_fixture!(tuple_access, "tuple_access");

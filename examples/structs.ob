@@ -1,0 +1,47 @@
+struct U {
+    pub fn static() -> String {
+        "Static method on U"
+    }
+
+    pub fn instance(self) -> String {
+        "Instance method on U"
+    }
+}
+
+struct T(String) {
+    pub fn static() -> String {
+        "Static method on T"
+    }
+
+    pub fn instance(self) -> String {
+        "Instance method on T with value #{self.0}"
+    }
+}
+
+struct S {
+    a: String,
+
+    pub fn static() -> String {
+        "Static method on S"
+    }
+
+    pub fn instance(self) -> String {
+        "Instance method on T with value #{self.a}"
+    }
+}
+
+fn main() {
+    print_line(U.static())
+    let u = U
+    print_line(u.instance())
+
+    print_line(T.static())
+    let t = T("t")
+    print_line(t.instance())
+
+    print_line(S.static())
+    let s = S {
+        a = "a",
+    }
+    print_line(s.instance())
+}
