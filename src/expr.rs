@@ -675,7 +675,14 @@ impl WriteRuby for ExprField<'_> {
         match *self.lhs {
             Expr::ExprIdent(ref expr_ident) if expr_ident.as_str() == "self" => (),
             Expr::TypeIdent(ref expr_type_ident) => {
-                scope.fragment(expr_type_ident.as_str());
+                let ident_str = expr_type_ident.as_str();
+
+                let resolved_ident_string = match scope.resolve_ident(ident_str) {
+                    Some((path, _kind)) => path,
+                    None => ident_str.to_string(),
+                };
+
+                scope.fragment(resolved_ident_string);
                 scope.fragment(".");
             }
             _ => {
