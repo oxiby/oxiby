@@ -71,10 +71,26 @@ pub fn module_program(
                     && !item_use.is_self_module()
                     && !item_use.is_std_module()
                 {
+                    let input_file = item_use.file_path(input_file_parent);
+                    let source = std::fs::read_to_string(&input_file).map_err(|error| {
+                        vec![
+                            Error::build("Module read failure")
+                                .with_detail(
+                                    &format!(
+                                        "Could not read source file for module `{}`.",
+                                        item_use.module_path()
+                                    ),
+                                    item_use.span,
+                                )
+                                .with_note(&format!("File system error: {error}"))
+                                .finish(),
+                        ]
+                    })?;
+
                     compiled_modules = module_program(
-                        &item_use.file_path(input_file_parent),
+                        &input_file,
                         input_file_parent,
-                        source,
+                        &source,
                         compiled_modules,
                         false,
                     )?;

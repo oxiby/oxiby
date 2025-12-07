@@ -15,7 +15,7 @@ pub struct ItemUse<'a> {
     is_self: bool,
     is_std: bool,
     idents: Vec<ImportedIdent<'a>>,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl<'a> ItemUse<'a> {
@@ -137,6 +137,14 @@ impl<'a> ItemUse<'a> {
         path_buf.set_extension("ob");
 
         path_buf
+    }
+
+    pub fn module_path(&self) -> String {
+        self.path
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(".")
     }
 }
 
