@@ -2,7 +2,9 @@ use chumsky::input::BorrowInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
+use crate::check::{self, Context, Infer};
 use crate::compiler::{Scope, WriteRuby};
+use crate::error::Error;
 use crate::expr::Expr;
 use crate::token::Token;
 
@@ -34,5 +36,11 @@ impl WriteRuby for ExprParenthesized<'_> {
         scope.fragment("(");
         self.expr.write_ruby(scope);
         scope.fragment(")");
+    }
+}
+
+impl Infer for ExprParenthesized<'_> {
+    fn infer(&self, checker: &check::Checker, context: &mut Context) -> Result<check::Type, Error> {
+        self.expr.infer(checker, context)
     }
 }

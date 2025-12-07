@@ -601,6 +601,9 @@ impl Infer for Expr<'_> {
 
             // Misc.
             Self::Binary(expr_binary) => expr_binary.infer(checker, context)?,
+            Self::Parenthesized(expr_parenthesized) => {
+                expr_parenthesized.infer(checker, context)?
+            }
 
             _ => todo!("Type inference not yet implemented for expression {self:?}"),
         };
