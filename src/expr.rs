@@ -600,6 +600,7 @@ impl Infer for Expr<'_> {
             Self::Let(expr_let) => expr_let.infer(checker, context)?,
 
             // Misc.
+            Self::Block(expr_block) => expr_block.infer(checker, context)?,
             Self::Binary(expr_binary) => expr_binary.infer(checker, context)?,
             Self::Parenthesized(expr_parenthesized) => {
                 expr_parenthesized.infer(checker, context)?
