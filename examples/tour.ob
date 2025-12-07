@@ -2,9 +2,6 @@
 // enum, trait, implementation, or function declaration. Any line beginning with two slashes is a
 // comment.
 
-// Importing the function `id`, from another Oxiby module located at `call.ob`.
-use call id
-
 // A public function with no parameters that returns an integer
 pub fn predictable() -> Integer {
     123
