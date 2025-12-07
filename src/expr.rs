@@ -553,8 +553,10 @@ impl Infer for Expr<'_> {
                 let name = expr_type_ident.as_str();
 
                 match checker.type_constructors.get(name) {
-                    Some((ty, _)) => match ty {
-                        check::Type::Constructor(_) => ty.clone(),
+                    Some((ty, members)) => match ty {
+                        check::Type::Constructor(_) if members.value_constructors.is_empty() => {
+                            ty.clone()
+                        }
                         _ => {
                             return Err(Error::build("Invalid struct literal")
                                 .with_detail(
