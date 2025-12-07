@@ -6,7 +6,7 @@ use std::fmt::Display;
 use chumsky::span::{SimpleSpan, Span};
 
 use crate::error::Error;
-use crate::item::{Item, ItemFn};
+use crate::item::{Item, ItemFn, Variant};
 
 pub trait Infer {
     fn infer(&self, checker: &Checker, context: &mut Context) -> Result<Type, Error>;
@@ -405,6 +405,67 @@ impl Checker {
                 }
 
                 self.type_constructors.insert(name.clone(), (ty, members));
+            } else if let Item::Enum(item_enum) = item {
+                let ty: Type = item_enum.ty.clone().into();
+
+                let name = match ty {
+                    Type::Primitive(primitive_type) => {
+                        return Err(Error::build("Duplicate type definition")
+                            .with_detail(
+                                &format!(
+                                    "This type name conflicts with the primitive type \
+                                     `{primitive_type}`."
+                                ),
+                                item_enum.ty.span().unwrap_or((0..0).into()),
+                            )
+                            .finish());
+                    }
+                    Type::Constructor(ref name) => name.clone(),
+                    _ => todo!("Type {ty} is not yet supported by the type checker"),
+                };
+
+                let mut members = TypeMembers::new();
+
+                for variant in &item_enum.variants {
+                    match variant {
+                        Variant::Unit(ty_ident, _) => {
+                            let name = ty_ident.to_string();
+
+                            members
+                                .value_constructors
+                                .insert(name.clone(), Type::constructor(name));
+                        }
+                        Variant::Tuple(ty_ident, fields, _) => {
+                            let name = ty_ident.to_string();
+
+                            let fields = fields.iter().map(|field| field.clone().into()).collect();
+
+                            let variant_ty = Type::Fn(Function::r#static(
+                                name.clone(),
+                                fields,
+                                Vec::new(),
+                                ty.clone(),
+                            ));
+
+                            members.value_constructors.insert(name.clone(), variant_ty);
+                        }
+                        Variant::Record(ty_ident, records, _) => {
+                            let name = ty_ident.to_string();
+
+                            let fields = records
+                                .iter()
+                                .map(|record| (record.name.to_string(), record.ty.clone().into()))
+                                .collect();
+
+                            let variant_ty =
+                                Type::RecordStruct(Box::new(Type::constructor(&name)), fields);
+
+                            members.value_constructors.insert(name.clone(), variant_ty);
+                        }
+                    }
+                }
+
+                self.type_constructors.insert(name, (ty, members));
             }
         }
 

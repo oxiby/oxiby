@@ -117,59 +117,59 @@ impl<'a> ExprCall<'a> {
     pub fn has_keyword_args(&self) -> bool {
         !self.keyword_args.is_empty()
     }
+}
 
-    pub fn infer_function(
-        &self,
-        checker: &Checker,
-        context: &mut Context,
-        function: &check::Function,
-    ) -> Result<check::Type, Error> {
-        for pair in function
-            .positional_params
-            .iter()
-            .zip_longest(self.positional_args.iter())
-        {
-            match pair {
-                EitherOrBoth::Both(ty, expr) => {
-                    let expr_ty = expr.infer(checker, context)?;
+pub fn infer_function<'a>(
+    checker: &Checker,
+    context: &mut Context,
+    function: &check::Function,
+    call_args: impl Iterator<Item = &'a Expr<'a>>,
+    span: SimpleSpan,
+    is_variant: bool,
+) -> Result<check::Type, Error> {
+    for pair in function.positional_params.iter().zip_longest(call_args) {
+        match pair {
+            EitherOrBoth::Both(ty, expr) => {
+                let expr_ty = expr.infer(checker, context)?;
 
-                    if *ty != expr_ty {
-                        return Err(Error::type_mismatch()
-                            .with_detail(
-                                &format!("Argument was expected to be `{ty}` but was `{expr_ty}`."),
-                                expr.span(),
-                            )
-                            .finish());
-                    }
-                }
-                EitherOrBoth::Left(ty) => {
-                    return Err(Error::build("Missing argument")
+                if *ty != expr_ty {
+                    return Err(Error::type_mismatch()
                         .with_detail(
-                            &format!(
-                                "Function expects argument of type `{ty}` but it was not given."
-                            ),
-                            self.span,
-                        )
-                        .finish());
-                }
-                EitherOrBoth::Right(expr) => {
-                    let expr_ty = expr.infer(checker, context)?;
-
-                    return Err(Error::build("Extra argument")
-                        .with_detail(
-                            &format!(
-                                "Argument of type `{expr_ty}` is not expected by function `{}`.",
-                                function.name
-                            ),
+                            &format!("Argument was expected to be `{ty}` but was `{expr_ty}`."),
                             expr.span(),
                         )
                         .finish());
                 }
             }
-        }
+            EitherOrBoth::Left(ty) => {
+                return Err(Error::build("Missing argument")
+                    .with_detail(
+                        &format!(
+                            "{} expects argument of type `{ty}` but it was not given.",
+                            if is_variant { "Variant" } else { "Function" },
+                        ),
+                        span,
+                    )
+                    .finish());
+            }
+            EitherOrBoth::Right(expr) => {
+                let expr_ty = expr.infer(checker, context)?;
 
-        Ok(*function.return_type.clone())
+                return Err(Error::build("Extra argument")
+                    .with_detail(
+                        &format!(
+                            "Argument of type `{expr_ty}` is not expected by {} `{}`.",
+                            if is_variant { "variant" } else { "function" },
+                            function.name
+                        ),
+                        expr.span(),
+                    )
+                    .finish());
+            }
+        }
     }
+
+    Ok(*function.return_type.clone())
 }
 
 impl WriteRuby for ExprCall<'_> {
@@ -220,7 +220,14 @@ impl Infer for ExprCall<'_> {
 
         if let Some(ty) = context.get(name) {
             match ty {
-                check::Type::Fn(function) => self.infer_function(checker, context, &function),
+                check::Type::Fn(function) => infer_function(
+                    checker,
+                    context,
+                    &function,
+                    self.positional_args.iter(),
+                    self.span,
+                    false,
+                ),
                 ty => Err(Error::type_mismatch()
                     .with_detail(
                         &format!(
@@ -236,7 +243,14 @@ impl Infer for ExprCall<'_> {
                     panic!("TODO: Tuple constructor wasn't a function.");
                 };
 
-                self.infer_function(checker, context, function)
+                infer_function(
+                    checker,
+                    context,
+                    function,
+                    self.positional_args.iter(),
+                    self.span,
+                    false,
+                )
             } else {
                 Err(Error::build("Invalid struct literal")
                     .with_detail(

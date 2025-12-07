@@ -11,11 +11,11 @@ use crate::types::{Constraint, Type, TypeIdent};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ItemEnum<'a> {
-    visibility: Visibility,
-    ty: Type<'a>,
-    constraints: Option<Vec<Constraint<'a>>>,
-    variants: Vec<Variant<'a>>,
-    fns: Vec<ItemFn<'a>>,
+    pub(crate) visibility: Visibility,
+    pub(crate) ty: Type<'a>,
+    pub(crate) constraints: Option<Vec<Constraint<'a>>>,
+    pub(crate) variants: Vec<Variant<'a>>,
+    pub(crate) fns: Vec<ItemFn<'a>>,
 }
 
 impl<'a> ItemEnum<'a> {

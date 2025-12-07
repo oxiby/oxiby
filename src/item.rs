@@ -5,7 +5,7 @@ mod item_struct;
 mod item_trait;
 mod item_use;
 
-pub use self::item_enum::ItemEnum;
+pub use self::item_enum::{ItemEnum, Variant};
 pub use self::item_fn::ItemFn;
 pub use self::item_impl::ItemImpl;
 pub use self::item_struct::ItemStruct;

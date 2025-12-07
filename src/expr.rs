@@ -41,7 +41,7 @@ pub use expr_array::expr_array_parser;
 pub use expr_block::ExprBlock;
 pub use expr_boolean::ExprBoolean;
 pub use expr_break::ExprBreak;
-pub use expr_call::ExprCall;
+pub use expr_call::{ExprCall, infer_function};
 pub use expr_closure::ExprClosure;
 pub use expr_conditional::ExprConditional;
 pub use expr_continue::ExprContinue;
@@ -60,7 +60,7 @@ pub use expr_range::ExprRange;
 pub use expr_return::ExprReturn;
 pub use expr_ruby::ExprRuby;
 pub use expr_string::ExprString;
-pub use expr_struct::ExprStruct;
+pub use expr_struct::{ExprStruct, check_records};
 pub use expr_tuple::ExprTuple;
 pub use expr_while_loop::ExprWhileLoop;
 
@@ -532,23 +532,24 @@ impl Infer for Expr<'_> {
     fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
         let ty = match self {
             // Literals
-            Expr::Boolean(..) => check::Type::boolean(),
-            Expr::Float(..) => check::Type::float(),
-            Expr::Integer(..) => check::Type::integer(),
-            Expr::String(..) => check::Type::string(),
-            Expr::Range(..) => check::Type::range(),
+            Self::Boolean(..) => check::Type::boolean(),
+            Self::Float(..) => check::Type::float(),
+            Self::Integer(..) => check::Type::integer(),
+            Self::String(..) => check::Type::string(),
+            Self::Range(..) => check::Type::range(),
 
             // Compound primitives
-            Expr::Map(expr_map) => expr_map.infer(checker, context)?,
-            Expr::List(expr_list) => expr_list.infer(checker, context)?,
-            Expr::Tuple(expr_tuple) => expr_tuple.infer(checker, context)?,
+            Self::Map(expr_map) => expr_map.infer(checker, context)?,
+            Self::List(expr_list) => expr_list.infer(checker, context)?,
+            Self::Tuple(expr_tuple) => expr_tuple.infer(checker, context)?,
 
             // Data structures
-            Expr::Struct(expr_struct) => expr_struct.infer(checker, context)?,
+            Self::Struct(expr_struct) => expr_struct.infer(checker, context)?,
+            Self::Enum(expr_enum) => expr_enum.infer(checker, context)?,
 
             // Identifiers
-            Expr::ExprIdent(ident) => context.find(ident.as_str(), self.span())?,
-            Expr::TypeIdent(expr_type_ident) => {
+            Self::ExprIdent(ident) => context.find(ident.as_str(), self.span())?,
+            Self::TypeIdent(expr_type_ident) => {
                 let name = expr_type_ident.as_str();
 
                 match checker.type_constructors.get(name) {
@@ -579,25 +580,25 @@ impl Infer for Expr<'_> {
             }
 
             // Member access
-            Expr::Field(expr_field) => expr_field.infer(checker, context)?,
+            Self::Field(expr_field) => expr_field.infer(checker, context)?,
 
             // Calls
-            Expr::Call(expr_call) => expr_call.infer(checker, context)?,
+            Self::Call(expr_call) => expr_call.infer(checker, context)?,
 
             // Control flow
-            Expr::Break(expr_break) => expr_break.infer(checker, context)?,
-            Expr::Conditional(expr_conditional) => expr_conditional.infer(checker, context)?,
-            Expr::Continue(..) => check::Type::unit(),
-            Expr::ForLoop(expr_for_loop) => expr_for_loop.infer(checker, context)?,
-            Expr::Loop(expr_loop) => expr_loop.infer(checker, context)?,
-            Expr::Return(expr_return) => expr_return.infer(checker, context)?,
-            Expr::WhileLoop(expr_while) => expr_while.infer(checker, context)?,
+            Self::Break(expr_break) => expr_break.infer(checker, context)?,
+            Self::Conditional(expr_conditional) => expr_conditional.infer(checker, context)?,
+            Self::Continue(..) => check::Type::unit(),
+            Self::ForLoop(expr_for_loop) => expr_for_loop.infer(checker, context)?,
+            Self::Loop(expr_loop) => expr_loop.infer(checker, context)?,
+            Self::Return(expr_return) => expr_return.infer(checker, context)?,
+            Self::WhileLoop(expr_while) => expr_while.infer(checker, context)?,
 
             // Patterns
-            Expr::Let(expr_let) => expr_let.infer(checker, context)?,
+            Self::Let(expr_let) => expr_let.infer(checker, context)?,
 
             // Misc.
-            Expr::Binary(expr_binary) => expr_binary.infer(checker, context)?,
+            Self::Binary(expr_binary) => expr_binary.infer(checker, context)?,
 
             _ => todo!("Type inference not yet implemented for expression {self:?}"),
         };
@@ -753,7 +754,14 @@ impl Infer for ExprField<'_> {
                         .finish());
                 }
 
-                expr_call.infer_function(checker, context, function)?
+                infer_function(
+                    checker,
+                    context,
+                    function,
+                    expr_call.positional_args.iter(),
+                    expr_call.span,
+                    false,
+                )?
             } else {
                 todo!(
                     "TODO: Inference for fields where `lhs` is a type identifier and `rhs` isn't \
@@ -804,7 +812,14 @@ impl Infer for ExprField<'_> {
                         .with_help(&format!("Try using the syntax `{lhs_ty}.{name}(...)`."))
                         .finish());
                 }
-                expr_call.infer_function(checker, context, function)?
+                infer_function(
+                    checker,
+                    context,
+                    function,
+                    expr_call.positional_args.iter(),
+                    expr_call.span,
+                    false,
+                )?
             } else {
                 todo!(
                     "TODO: Inference for fields where `lhs` is an expression identifier and `rhs` \

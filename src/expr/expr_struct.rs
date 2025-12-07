@@ -102,65 +102,94 @@ impl Infer for ExprStruct<'_> {
                 .finish());
         };
 
-        let mut expr_fields = HashMap::new();
-        let mut expr_field_names = HashSet::with_capacity(self.fields.len());
+        check_records(
+            checker,
+            context,
+            &name,
+            fields.iter(),
+            self.fields.iter(),
+            self.span,
+            false,
+        )?;
 
-        for expr_field in &self.fields {
-            let name = expr_field.0.as_str();
-            expr_fields.insert(
-                name.to_string(),
-                (
-                    expr_field.1.clone(),
-                    expr_field.0.span.union(expr_field.1.span()),
-                ),
-            );
-            expr_field_names.insert(name);
-        }
+        Ok(*ty.clone())
+    }
+}
 
-        for field in fields {
-            let name = &field.0;
+pub fn check_records<'a>(
+    checker: &Checker,
+    context: &mut Context,
+    name: &str,
+    field_types: impl Iterator<Item = &'a (String, check::Type)>,
+    field_values: impl Iterator<Item = &'a (ExprIdent<'a>, Expr<'a>)>,
+    span: SimpleSpan,
+    is_variant: bool,
+) -> Result<(), Error> {
+    let mut expr_fields = HashMap::new();
+    let mut expr_field_names = HashSet::with_capacity(field_values.size_hint().0);
 
-            let Some(expr_field) = expr_fields.get(name) else {
-                return Err(Error::build("Missing field")
-                    .with_detail(
-                        &format!("Field `{name}` of struct `{ty}` must be given."),
-                        self.span,
-                    )
-                    .finish());
-            };
+    for expr_field in field_values {
+        let field_name = expr_field.0.as_str();
 
-            let expr_type = expr_field.0.infer(checker, context)?;
+        expr_fields.insert(
+            field_name.to_string(),
+            (
+                expr_field.1.clone(),
+                expr_field.0.span.union(expr_field.1.span()),
+            ),
+        );
 
-            if expr_type != field.1 {
-                return Err(Error::type_mismatch()
-                    .with_detail(
-                        &format!(
-                            "Field `{name}` of type `{ty}` is type `{}`, but a value of type \
-                             `{expr_type}` was given.",
-                            field.1
-                        ),
-                        expr_field.0.span(),
-                    )
-                    .finish());
-            }
+        expr_field_names.insert(field_name);
+    }
 
-            expr_field_names.remove(name.as_str());
-        }
+    for field in field_types {
+        let field_name = &field.0;
 
-        if let Some(name) = expr_field_names.into_iter().next() {
-            return Err(Error::build("Unknown field")
+        let Some(expr_field) = expr_fields.get(field_name) else {
+            return Err(Error::build("Missing field")
                 .with_detail(
-                    &format!("Struct {ty} has no field named {name}."),
-                    expr_fields
-                        .get(name)
-                        .expect(
-                            "should be present because the key was generated from the collection",
-                        )
-                        .1,
+                    &format!(
+                        "Field `{field_name}` of {} `{name}` must be given.",
+                        if is_variant { "variant" } else { "struct" }
+                    ),
+                    span,
+                )
+                .finish());
+        };
+
+        let expr_type = expr_field.0.infer(checker, context)?;
+
+        if expr_type != field.1 {
+            return Err(Error::type_mismatch()
+                .with_detail(
+                    &format!(
+                        "Field `{field_name}` of {} `{name}` is type `{}`, but a value of type \
+                         `{expr_type}` was given.",
+                        if is_variant { "variant" } else { "type" },
+                        field.1
+                    ),
+                    expr_field.0.span(),
                 )
                 .finish());
         }
 
-        Ok(*ty.clone())
+        expr_field_names.remove(field_name.as_str());
     }
+
+    if let Some(field_name) = expr_field_names.into_iter().next() {
+        return Err(Error::build("Unknown field")
+            .with_detail(
+                &format!(
+                    "{} {name} has no field named {field_name}.",
+                    if is_variant { "Variant" } else { "Struct" }
+                ),
+                expr_fields
+                    .get(field_name)
+                    .expect("should be present because the key was generated from the collection")
+                    .1,
+            )
+            .finish());
+    }
+
+    Ok(())
 }
