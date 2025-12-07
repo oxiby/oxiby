@@ -26,7 +26,7 @@ struct S {
     }
 
     pub fn instance(self) -> String {
-        "Instance method on T with value #{self.a}"
+        "Instance method on S with value #{self.a}"
     }
 }
 

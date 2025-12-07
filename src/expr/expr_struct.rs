@@ -180,7 +180,7 @@ pub fn check_records<'a>(
         return Err(Error::build("Unknown field")
             .with_detail(
                 &format!(
-                    "{} {name} has no field named {field_name}.",
+                    "{} `{name}` has no field named `{field_name}`.",
                     if is_variant { "Variant" } else { "Struct" }
                 ),
                 expr_fields
