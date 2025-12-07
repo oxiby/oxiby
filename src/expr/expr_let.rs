@@ -4,7 +4,7 @@ use chumsky::span::SimpleSpan;
 
 use crate::Spanned;
 use crate::check::{self, Checker, Context, Infer};
-use crate::compiler::WriteRuby;
+use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::Expr;
 use crate::pattern::Pattern;
@@ -38,28 +38,36 @@ impl<'a> ExprLet<'a> {
             .labelled("let")
             .as_context()
     }
+
+    fn write_body(&self, scope: &mut Scope) {
+        if let Expr::TypeIdent(expr_type_ident) = &*self.body {
+            scope.fragment(format!("{}.new", expr_type_ident.as_str()));
+        } else {
+            self.body.write_ruby(scope);
+        }
+    }
 }
 
 impl WriteRuby for ExprLet<'_> {
-    fn write_ruby(&self, scope: &mut crate::compiler::Scope) {
+    fn write_ruby(&self, scope: &mut Scope) {
         match &self.pattern {
             Pattern::Type(pattern_type) => {
                 pattern_type.write_ruby(scope);
                 scope.fragment(" = ");
-                self.body.write_ruby(scope);
+                self.write_body(scope);
             }
             Pattern::Ident(pattern_ident) => {
                 pattern_ident.write_ruby(scope);
                 scope.fragment(" = ");
-                self.body.write_ruby(scope);
+                self.write_body(scope);
             }
             Pattern::Tuple(pattern_tuple) => {
                 pattern_tuple.write_ruby(scope);
                 scope.fragment(" = ");
-                self.body.write_ruby(scope);
+                self.write_body(scope);
             }
             Pattern::Ctor(pattern_ctor) => {
-                self.body.write_ruby(scope);
+                self.write_body(scope);
                 scope.fragment(" => ");
                 pattern_ctor.write_ruby(scope);
             }
