@@ -3,7 +3,6 @@
 require_relative "std/all"
 
 module Tour
-  require_relative "call"
   def self.predictable
     123
   end

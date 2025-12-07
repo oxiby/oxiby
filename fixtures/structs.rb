@@ -72,7 +72,7 @@ module Structs
     end
 
     def instance
-      "Instance method on T with value #{a}"
+      "Instance method on S with value #{a}"
     end
   end
 

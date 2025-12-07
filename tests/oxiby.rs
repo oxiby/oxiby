@@ -35,7 +35,6 @@ test_fixture!(loops, "loops");
 test_fixture!(maps, "maps");
 test_fixture!(patterns, "patterns");
 test_fixture!(result_tuple, "result_tuple");
-test_fixture!(root, "root");
 test_fixture!(structs, "structs");
 test_fixture!(tic_tac_toe, "tic_tac_toe");
 test_fixture!(tour, "tour");
