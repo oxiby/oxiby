@@ -119,13 +119,38 @@ impl<'a> ExprCall<'a> {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum Noun {
+    Function,
+    Struct,
+    Variant,
+}
+
+impl Noun {
+    fn uppercase(self) -> String {
+        match self {
+            Self::Function => "Function".to_string(),
+            Self::Struct => "Struct".to_string(),
+            Self::Variant => "Variant".to_string(),
+        }
+    }
+
+    fn lowercase(self) -> String {
+        match self {
+            Self::Function => "function".to_string(),
+            Self::Struct => "struct".to_string(),
+            Self::Variant => "variant".to_string(),
+        }
+    }
+}
+
 pub fn infer_function<'a>(
     checker: &Checker,
     context: &mut Context,
     function: &check::Function,
     call_args: impl Iterator<Item = &'a Expr<'a>>,
     span: SimpleSpan,
-    is_variant: bool,
+    noun: Noun,
 ) -> Result<check::Type, Error> {
     for pair in function.positional_params.iter().zip_longest(call_args) {
         match pair {
@@ -146,7 +171,7 @@ pub fn infer_function<'a>(
                     .with_detail(
                         &format!(
                             "{} expects argument of type `{ty}` but it was not given.",
-                            if is_variant { "Variant" } else { "Function" },
+                            noun.uppercase(),
                         ),
                         span,
                     )
@@ -159,7 +184,7 @@ pub fn infer_function<'a>(
                     .with_detail(
                         &format!(
                             "Argument of type `{expr_ty}` is not expected by {} `{}`.",
-                            if is_variant { "variant" } else { "function" },
+                            noun.lowercase(),
                             function.name
                         ),
                         expr.span(),
@@ -226,7 +251,7 @@ impl Infer for ExprCall<'_> {
                     &function,
                     self.positional_args.iter(),
                     self.span,
-                    false,
+                    Noun::Function,
                 ),
                 ty => Err(Error::type_mismatch()
                     .with_detail(
@@ -249,7 +274,7 @@ impl Infer for ExprCall<'_> {
                     function,
                     self.positional_args.iter(),
                     self.span,
-                    false,
+                    Noun::Struct,
                 )
             } else {
                 Err(Error::build("Invalid struct literal")

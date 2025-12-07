@@ -41,7 +41,7 @@ pub use expr_array::expr_array_parser;
 pub use expr_block::ExprBlock;
 pub use expr_boolean::ExprBoolean;
 pub use expr_break::ExprBreak;
-pub use expr_call::{ExprCall, infer_function};
+pub use expr_call::{ExprCall, Noun, infer_function};
 pub use expr_closure::ExprClosure;
 pub use expr_conditional::ExprConditional;
 pub use expr_continue::ExprContinue;
@@ -745,7 +745,7 @@ impl Infer for ExprField<'_> {
                     return Err(Error::build("Invalid static method call")
                         .with_detail(
                             &format!(
-                                "`{name}` is being called as a static method, but it is a \
+                                "`{name}` is being called as a static method, but it is an \
                                  instance method."
                             ),
                             self.rhs.span(),
@@ -762,7 +762,7 @@ impl Infer for ExprField<'_> {
                     function,
                     expr_call.positional_args.iter(),
                     expr_call.span,
-                    false,
+                    Noun::Function,
                 )?
             } else {
                 todo!(
@@ -820,7 +820,7 @@ impl Infer for ExprField<'_> {
                     function,
                     expr_call.positional_args.iter(),
                     expr_call.span,
-                    false,
+                    Noun::Function,
                 )?
             } else {
                 todo!(
