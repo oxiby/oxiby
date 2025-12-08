@@ -1,0 +1,3 @@
+pub enum E2 {
+    V,
+}

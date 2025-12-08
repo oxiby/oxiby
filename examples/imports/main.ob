@@ -9,7 +9,7 @@ use j.k E2
 use l.m E.U2
 use n.o E.S -> St2
 
-fn examples() {
+fn main() {
     f()
     S.f()
     E.V
