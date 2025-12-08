@@ -136,6 +136,17 @@ impl Infer for ExprEnum<'_> {
                             ),
                             self.span,
                         )
+                        .with_help(
+                            &(if let Some(check::Type::Fn(_)) =
+                                members.value_constructors.get(variant_name)
+                            {
+                                format!("Try using tuple variant syntax: `{variant_name}(...)`")
+                            } else {
+                                format!(
+                                    "Try using record variant syntax: `{variant_name} {{ ... }}`"
+                                )
+                            }),
+                        )
                         .finish());
                 }
             }
@@ -148,6 +159,18 @@ impl Infer for ExprEnum<'_> {
                                  constructed with the syntax `{variant_name}(...)`."
                             ),
                             self.span,
+                        )
+                        .with_help(
+                            &(if matches!(variant_ty, check::Type::RecordStruct(_, _)) {
+                                format!(
+                                    "Try using record variant syntax: `{variant_name} {{ ... }}`"
+                                )
+                            } else {
+                                format!(
+                                    "Try using unit variant syntax by omitting the parenthesized \
+                                     arguments: `{variant_name}`"
+                                )
+                            }),
                         )
                         .finish());
                 };
@@ -170,6 +193,18 @@ impl Infer for ExprEnum<'_> {
                                  constructed with the syntax `{variant_name} {{ ... }}`."
                             ),
                             self.span,
+                        )
+                        .with_help(
+                            &(if let Some(check::Type::Fn(_)) =
+                                members.value_constructors.get(variant_name)
+                            {
+                                format!("Try using tuple variant syntax: `{variant_name}(...)`")
+                            } else {
+                                format!(
+                                    "Try using unit variant syntax by omitting the braced fields: \
+                                     `{variant_name}`"
+                                )
+                            }),
                         )
                         .finish());
                 };
