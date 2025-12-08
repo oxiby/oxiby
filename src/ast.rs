@@ -83,7 +83,7 @@ impl<'a> RecordField<'a> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Operator {
     Assign,
     AddAssign,

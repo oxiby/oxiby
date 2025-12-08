@@ -608,6 +608,7 @@ impl Infer for Expr<'_> {
 
             // Misc.
             Self::Block(expr_block) => expr_block.infer(checker, context)?,
+            Self::Unary(expr_unary) => expr_unary.infer(checker, context)?,
             Self::Binary(expr_binary) => expr_binary.infer(checker, context)?,
             Self::Parenthesized(expr_parenthesized) => {
                 expr_parenthesized.infer(checker, context)?
@@ -674,6 +675,57 @@ impl WriteRuby for ExprUnary<'_> {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.fragment(self.op.to_string());
         self.expr.write_ruby(scope);
+    }
+}
+
+impl Infer for ExprUnary<'_> {
+    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+        let ty = (*self.expr).infer(checker, context)?;
+
+        match self.op {
+            Operator::Sub => match ty {
+                check::Type::Primitive(primitive)
+                    if primitive == check::PrimitiveType::Integer
+                        || primitive == check::PrimitiveType::Float => {}
+                _ => {
+                    return Err(Error::build("Invalid unary expression")
+                        .with_detail(
+                            &format!(
+                                "The `-` unary operator can only be applied to expressions of \
+                                 type `Integer` or `Float`, but was applied to expression of type \
+                                 `{ty}`."
+                            ),
+                            self.span,
+                        )
+                        .finish());
+                }
+            },
+            Operator::Not => {
+                if matches!(ty, check::Type::Primitive(primitive) if primitive == check::PrimitiveType::Boolean)
+                {
+                } else {
+                    return Err(Error::build("Invalid unary expression")
+                        .with_detail(
+                            &format!(
+                                "The `!` unary operator can only be applied to expressions of \
+                                 type `Boolean`, but was applied to expression of type `{ty}`."
+                            ),
+                            self.span,
+                        )
+                        .finish());
+                }
+            }
+            operator => {
+                return Err(Error::build("Invalid unary expression")
+                    .with_detail(
+                        &format!("`{operator}` cannot be used in prefix position."),
+                        self.span,
+                    )
+                    .finish());
+            }
+        }
+
+        Ok(ty)
     }
 }
 
