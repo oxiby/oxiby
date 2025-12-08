@@ -1,0 +1,17 @@
+fn main() {
+    let null = fn() {}
+
+    null.call()
+
+    let implicit = fn(name) {
+        "Hello, #{name}!"
+    }
+
+    print_line(implicit.call("Oxiby"))
+
+    let explicit = fn(name: String) -> String {
+        "Hello, #{name}!"
+    }
+
+    print_line(explicit.call("Oxiby"))
+}
