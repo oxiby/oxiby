@@ -6,12 +6,12 @@ use ariadne::{Color, Label, Report, ReportKind, sources};
 use clap::builder::PathBufValueParser;
 use clap::{Arg, ArgAction, Command};
 
-use crate::error::Error;
+use crate::error::ErrorWithSource;
 use crate::module::{module_ast, module_check, module_program, module_tokens};
 
 pub enum CliError {
     Message(String),
-    Source(String, String, Vec<Error>),
+    Source(Vec<ErrorWithSource>),
 }
 
 impl CliError {
@@ -172,43 +172,57 @@ pub fn run() -> Result<(), CliError> {
     Ok(())
 }
 
-pub fn report_errors(
-    file_name: &str,
-    source: &str,
-    errors: Vec<Error>,
-) -> Result<(), std::io::Error> {
-    for error in errors {
+pub fn report_errors(errors: Vec<ErrorWithSource>) -> Result<(), std::io::Error> {
+    for error_with_source in errors {
         let mut report = Report::build(
             ReportKind::Error,
-            (file_name.to_string(), error.span.into_range()),
+            (
+                error_with_source.file_name_string(),
+                error_with_source.error().span.into_range(),
+            ),
         )
-        .with_message(error.message);
+        .with_message(error_with_source.error().message.clone());
 
-        for help in error.help {
+        for help in &error_with_source.error().help {
             report.add_help(help);
         }
 
-        for note in error.notes {
+        for note in &error_with_source.error().notes {
             report.add_note(note);
         }
 
-        if let Some(detail) = error.detail {
+        if let Some(detail) = &error_with_source.error().detail {
             report.add_label(
-                Label::new((file_name.to_string(), error.span.into_range()))
-                    .with_message(detail)
-                    .with_color(Color::Red),
+                Label::new((
+                    error_with_source.file_name_string(),
+                    error_with_source.error().span.into_range(),
+                ))
+                .with_message(detail)
+                .with_color(Color::Red),
             );
         }
 
         report
-            .with_labels(error.contexts.into_iter().map(|error_context| {
-                Label::new((file_name.to_string(), error_context.span.into_range()))
-                    .with_message(error_context.message)
-                    .with_color(Color::Yellow)
-                    .with_order(1)
-            }))
+            .with_labels(
+                error_with_source
+                    .error()
+                    .contexts
+                    .iter()
+                    .map(|error_context| {
+                        Label::new((
+                            error_with_source.file_name_string(),
+                            error_context.span.into_range(),
+                        ))
+                        .with_message(&error_context.message)
+                        .with_color(Color::Yellow)
+                        .with_order(1)
+                    }),
+            )
             .finish()
-            .eprint(sources([(file_name.to_string(), source.to_string())]))?;
+            .eprint(sources([(
+                error_with_source.file_name_string(),
+                error_with_source.source(),
+            )]))?;
     }
 
     Ok(())
@@ -323,8 +337,14 @@ fn arg_output() -> Arg {
 fn run_check(check: &Check) -> Result<(), CliError> {
     let source = read_file(&check.entry_file)?;
 
-    module_check(&source, check.debug)
-        .map_err(|errors| CliError::Source(check.entry_file_string(), source, errors))
+    module_check(&source, check.debug).map_err(|errors| {
+        CliError::Source(
+            errors
+                .into_iter()
+                .map(|error| ErrorWithSource::from_error(check.entry_file_string(), &source, error))
+                .collect(),
+        )
+    })
 }
 
 fn run_build(build: &Build) -> Result<(), CliError> {
@@ -369,7 +389,7 @@ fn run_build(build: &Build) -> Result<(), CliError> {
                 }
             }
         }
-        Err(errors) => return Err(CliError::Source(build.entry_file_string(), source, errors)),
+        Err(errors) => return Err(CliError::Source(errors)),
     }
 
     Ok(())
@@ -426,8 +446,14 @@ fn run_new(mut path: PathBuf) -> Result<(), CliError> {
 fn run_lex(build: &Build) -> Result<(), CliError> {
     let source = read_file(&build.entry_file)?;
 
-    let tokens = module_tokens(&source)
-        .map_err(|errors| CliError::Source(build.entry_file_string(), source, errors))?;
+    let tokens = module_tokens(&source).map_err(|errors| {
+        CliError::Source(
+            errors
+                .into_iter()
+                .map(|error| ErrorWithSource::from_error(build.entry_file_string(), &source, error))
+                .collect(),
+        )
+    })?;
 
     println!("{}", tokens.trim_end());
 
@@ -437,8 +463,14 @@ fn run_lex(build: &Build) -> Result<(), CliError> {
 fn run_parse(build: &Build) -> Result<(), CliError> {
     let source = read_file(&build.entry_file)?;
 
-    let ast = module_ast(&source)
-        .map_err(|errors| CliError::Source(build.entry_file_string(), source, errors))?;
+    let ast = module_ast(&source).map_err(|errors| {
+        CliError::Source(
+            errors
+                .into_iter()
+                .map(|error| ErrorWithSource::from_error(build.entry_file_string(), &source, error))
+                .collect(),
+        )
+    })?;
 
     println!("{}", ast.trim_end());
 

@@ -1,8 +1,43 @@
 use std::fmt::Display;
+use std::path::PathBuf;
 
 use chumsky::error::Rich;
 use chumsky::span::SimpleSpan;
 
+#[derive(Debug)]
+pub struct ErrorWithSource {
+    file_path: PathBuf,
+    source: String,
+    error: Error,
+}
+
+impl ErrorWithSource {
+    pub fn from_error<F, S>(file_path: F, source: &S, error: Error) -> Self
+    where
+        F: Into<PathBuf>,
+        S: ToString + ?Sized,
+    {
+        ErrorWithSource {
+            file_path: file_path.into(),
+            source: source.to_string(),
+            error,
+        }
+    }
+
+    pub fn file_name_string(&self) -> String {
+        self.file_path.to_string_lossy().to_string()
+    }
+
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+
+    pub fn error(&self) -> &Error {
+        &self.error
+    }
+}
+
+#[derive(Debug)]
 pub struct Error {
     pub(crate) message: String,
     pub(crate) detail: Option<String>,
@@ -12,6 +47,7 @@ pub struct Error {
     pub(crate) span: SimpleSpan,
 }
 
+#[derive(Debug)]
 pub struct ErrorContext {
     pub(crate) message: String,
     pub(crate) span: SimpleSpan,
@@ -84,6 +120,18 @@ impl Builder {
             notes: self.notes,
             contexts: self.contexts,
             span: self.span,
+        }
+    }
+
+    pub fn finish_with_source<F, S>(self, file_path: F, source: &S) -> ErrorWithSource
+    where
+        F: Into<PathBuf>,
+        S: ToString + ?Sized,
+    {
+        ErrorWithSource {
+            file_path: file_path.into(),
+            source: source.to_string(),
+            error: self.finish(),
         }
     }
 
