@@ -885,14 +885,50 @@ impl Infer for ExprField<'_> {
                     expr_call.span,
                     Noun::Function,
                 )?
+            } else if let Expr::Integer(expr_integer) = &*self.rhs {
+                let Some(check::Type::Fn(function)) =
+                    members.value_constructors.get(&lhs_ty.to_string())
+                else {
+                    return Err(Error::build("Unknown field")
+                        .with_detail(
+                            &format!("Type `{}` has no field `{}`.", lhs_ty, expr_integer.value),
+                            self.rhs.span(),
+                        )
+                        .finish());
+                };
+
+                let param_index = usize::try_from(expr_integer.value).map_err(|_| {
+                    Error::build("Unknown field")
+                        .with_detail(
+                            &format!("Type `{}` has no field `{}`.", lhs_ty, expr_integer.value),
+                            self.rhs.span(),
+                        )
+                        .finish()
+                })?;
+
+                match function.positional_params.get(param_index) {
+                    Some(expr_ty) => expr_ty.clone(),
+                    None => {
+                        return Err(Error::build("Unknown field")
+                            .with_detail(
+                                &format!(
+                                    "Type `{}` has no field `{}`.",
+                                    lhs_ty, expr_integer.value
+                                ),
+                                self.rhs.span(),
+                            )
+                            .finish());
+                    }
+                }
             } else {
                 todo!(
                     "TODO: Inference for fields where `lhs` is an expression identifier and `rhs` \
-                     isn't a call."
+                     isn't a call. rhs: {:?}",
+                    self.rhs
                 );
             }
         } else {
-            todo!("TODO: Inference for fields where `lhs` isn't an identifier.");
+            todo!("TODO: Inference for fields where `lhs` isn't an identifier. Expr: {self:?}");
         };
 
         Ok(ty)

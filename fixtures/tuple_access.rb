@@ -25,7 +25,7 @@ module TupleAccess
   end
 
   def self.main
-    two = Two.new(3, 4)
+    two = Two.new("apple", "banana")
     ::Std::Io.print_line(two.__0)
     ::Std::Io.print_line(two.__1)
   end
