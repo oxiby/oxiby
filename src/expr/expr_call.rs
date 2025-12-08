@@ -170,11 +170,15 @@ pub fn infer_function<'a>(
                 return Err(Error::build("Missing argument")
                     .with_detail(
                         &format!(
-                            "{} expects argument of type `{ty}` but it was not given.",
+                            "{} expects an additional argument of type `{ty}` but it was not \
+                             given.",
                             noun.uppercase(),
                         ),
                         span,
                     )
+                    .with_help(&format!(
+                        "Try including an additional argument of type `{ty}`."
+                    ))
                     .finish());
             }
             EitherOrBoth::Right(expr) => {
@@ -189,6 +193,7 @@ pub fn infer_function<'a>(
                         ),
                         expr.span(),
                     )
+                    .with_help("Try omitting this argument.")
                     .finish());
             }
         }
@@ -280,10 +285,20 @@ impl Infer for ExprCall<'_> {
                 Err(Error::build("Invalid struct literal")
                     .with_detail(
                         &format!(
-                            "Type `{ty}` is not a tuple struct and cannot be constructed with the \
-                             syntax `{ty}(...)`."
+                            "Struct `{ty}` is not a tuple struct and cannot be constructed with \
+                             the syntax `{ty}(...)`."
                         ),
                         self.span,
+                    )
+                    .with_help(
+                        &(if matches!(ty, check::Type::RecordStruct(_, _)) {
+                            format!("Try using record struct syntax: `{ty} {{ ... }}`")
+                        } else {
+                            format!(
+                                "Try using unit struct syntax by omitting the parenthesized \
+                                 arguments: `{ty}`"
+                            )
+                        }),
                     )
                     .finish())
             }

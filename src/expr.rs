@@ -561,10 +561,17 @@ impl Infer for Expr<'_> {
                             return Err(Error::build("Invalid struct literal")
                                 .with_detail(
                                     &format!(
-                                        "Type `{name}` is not a unit struct and cannot be \
+                                        "Struct `{name}` is not a unit struct and cannot be \
                                          constructed with the syntax `{name}`."
                                     ),
                                     expr_type_ident.span,
+                                )
+                                .with_help(
+                                    &(if members.value_constructors.contains_key(name) {
+                                        format!("Try using tuple struct syntax: `{ty}(...)`")
+                                    } else {
+                                        format!("Try using record struct syntax: `{ty} {{ ... }}`")
+                                    }),
                                 )
                                 .finish());
                         }

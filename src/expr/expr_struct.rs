@@ -83,7 +83,7 @@ impl Infer for ExprStruct<'_> {
     fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
         let name = self.ty.to_string();
 
-        let Some((ty, _members)) = checker.type_constructors.get(&name) else {
+        let Some((ty, members)) = checker.type_constructors.get(&name) else {
             return Err(Error::build("Unknown type")
                 .with_detail(&format!("Type `{name}` is not in scope."), self.span)
                 .with_help("You might need to import this type from another module.")
@@ -94,10 +94,19 @@ impl Infer for ExprStruct<'_> {
             return Err(Error::build("Invalid struct literal")
                 .with_detail(
                     &format!(
-                        "Type `{ty}` is not a record struct and cannot be constructed with the \
+                        "Struct `{ty}` is not a record struct and cannot be constructed with the \
                          syntax `{ty} {{ ... }}`."
                     ),
                     self.span,
+                )
+                .with_help(
+                    &(if members.value_constructors.contains_key(&name) {
+                        format!("Try using tuple struct syntax: `{ty}(...)`")
+                    } else {
+                        format!(
+                            "Try using unit struct syntax by omitting the braced fields: `{ty}`"
+                        )
+                    }),
                 )
                 .finish());
         };
@@ -177,7 +186,7 @@ pub fn check_records<'a>(
     }
 
     if let Some(field_name) = expr_field_names.into_iter().next() {
-        return Err(Error::build("Unknown field")
+        return Err(Error::build("Extra field")
             .with_detail(
                 &format!(
                     "{} `{name}` has no field named `{field_name}`.",
@@ -188,6 +197,7 @@ pub fn check_records<'a>(
                     .expect("should be present because the key was generated from the collection")
                     .1,
             )
+            .with_help(&format!("Try omitting the field `{field_name}`."))
             .finish());
     }
 
