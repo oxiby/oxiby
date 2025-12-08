@@ -1,12 +1,16 @@
-fn single_index() {
+fn single_index() -> String {
     ["hello"][0]
 }
 
-fn double_index_across_multiple_lines() {
-    ["hello"]
-    [0]["bar"]
+fn double_index_across_multiple_lines() -> String {
+    [["hello"]]
+    [0][0]
 }
 
 fn two_lists() {
     (["one"], ["two"])
+
+    // TODO: If the above expression is returned, the type checker should accepted a declared
+    // return type of `(List<String>, List<String>)`.
+    ()
 }

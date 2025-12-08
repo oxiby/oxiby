@@ -8,10 +8,11 @@ module Lists
   end
 
   def self.double_index_across_multiple_lines
-    ["hello"][0]["bar"]
+    [["hello"]][0][0]
   end
 
   def self.two_lists
     ::Std::Tuple::Tuple.new(fields: [["one"], ["two"]])
+    ::Std::Tuple::Tuple.new(fields: [])
   end
 end
