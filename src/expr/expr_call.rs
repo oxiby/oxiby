@@ -186,11 +186,17 @@ pub fn infer_function<'a>(
 
                 return Err(Error::build("Extra argument")
                     .with_detail(
-                        &format!(
-                            "Argument of type `{expr_ty}` is not expected by {} `{}`.",
-                            noun.lowercase(),
-                            function.name
-                        ),
+                        &(match &function.name {
+                            Some(name) => format!(
+                                "Argument of type `{expr_ty}` is not expected by {} `{}`.",
+                                noun.lowercase(),
+                                name,
+                            ),
+                            None => format!(
+                                "Argument of type `{expr_ty}` is not expected by {}.",
+                                noun.lowercase(),
+                            ),
+                        }),
                         expr.span(),
                     )
                     .with_help("Try omitting this argument.")

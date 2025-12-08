@@ -166,7 +166,10 @@ impl Display for Type {
                     .join(", ")
             ),
             Self::RecordStruct(ty, _) => &format!("{ty}",),
-            Self::Fn(func) => &format!("<function \"{}\">", func.name),
+            Self::Fn(func) => match &func.name {
+                Some(name) => &format!("<function \"{name}\">"),
+                None => "<function>",
+            },
         };
 
         write!(f, "{s}")
@@ -184,6 +187,7 @@ impl From<crate::types::Type<'_>> for Type {
                 "Range" => Self::range(),
                 name => Self::constructor(name.to_string()),
             },
+            crate::types::Type::Variable(expr_ident) => Self::Variable(expr_ident.to_string()),
             crate::types::Type::Tuple(types) => {
                 let types: Vec<_> = types.into_iter().map(Into::into).collect();
 
@@ -193,9 +197,18 @@ impl From<crate::types::Type<'_>> for Type {
                     Self::Tuple(types)
                 }
             }
-            _ => todo!(
-                "Only concrete and tuple types can be convereted to crate::check::Type right now"
-            ),
+            crate::types::Type::Fn(maybe_params, maybe_return_ty) => {
+                let function = Function::new(
+                    None,
+                    true,
+                    maybe_params.map_or_else(Vec::new, |params| {
+                        params.into_iter().map(From::from).collect()
+                    }),
+                    Vec::new(),
+                    maybe_return_ty.map_or_else(Self::unit, |return_ty| (*return_ty).into()),
+                );
+                Self::Fn(function)
+            }
         }
     }
 }
@@ -225,7 +238,7 @@ impl Display for PrimitiveType {
 
 #[derive(Clone, Debug, Hash, PartialEq)]
 pub struct Function {
-    pub(crate) name: String,
+    pub(crate) name: Option<String>,
     pub(crate) is_static: bool,
     pub(crate) positional_params: Vec<Type>,
     pub(crate) keyword_params: Vec<(String, Type)>,
@@ -233,15 +246,18 @@ pub struct Function {
 }
 
 impl Function {
-    pub fn new(
-        name: String,
+    pub fn new<N>(
+        name: N,
         is_static: bool,
         positional_params: Vec<Type>,
         keyword_params: Vec<(String, Type)>,
         return_type: Type,
-    ) -> Self {
+    ) -> Self
+    where
+        N: Into<Option<String>>,
+    {
         Self {
-            name,
+            name: name.into(),
             is_static,
             positional_params,
             keyword_params,
@@ -255,7 +271,7 @@ impl Function {
         return_type: Type,
     ) -> Self {
         Self {
-            name,
+            name: Some(name),
             is_static: true,
             positional_params,
             keyword_params,
@@ -269,7 +285,7 @@ impl Function {
         return_type: Type,
     ) -> Self {
         Self {
-            name,
+            name: Some(name),
             is_static: false,
             positional_params,
             keyword_params,
