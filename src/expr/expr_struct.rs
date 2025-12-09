@@ -90,7 +90,7 @@ impl Infer for ExprStruct {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let name = self.ty.to_string();
 
-        let (ty, members) = match checker.type_constructors.get(&name) {
+        let (ty, members) = match checker.get_type_constructor(&name) {
             Some((ty, members)) => (ty.clone(), members.clone()),
             None => {
                 return Err(Error::build("Unknown type")

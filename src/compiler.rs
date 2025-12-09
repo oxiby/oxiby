@@ -304,12 +304,8 @@ where
 }
 
 #[must_use]
-pub fn compile_module(
-    oxiby_module: OxibyModulePath,
-    items: &[Item],
-    is_std: bool,
-    is_entry: bool,
-) -> String {
+pub fn compile_module(oxiby_module: OxibyModulePath, items: &[Item], is_std: bool) -> String {
+    let is_entry = oxiby_module.is_entry();
     let mut scope = Scope::new(oxiby_module);
 
     scope.add_import("print_line", ("::Std::Io.print_line", ImportKind::Function));
@@ -392,5 +388,5 @@ pub fn compile_str(
                 .collect::<Vec<String>>()
         })?;
 
-    Ok(compile_module(oxiby_module_path, &items, is_std, true))
+    Ok(compile_module(oxiby_module_path, &items, is_std))
 }

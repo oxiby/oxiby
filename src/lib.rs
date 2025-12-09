@@ -11,8 +11,8 @@ mod error;
 mod expr;
 mod import;
 mod item;
-mod module;
 mod pattern;
+mod stage;
 mod token;
 mod types;
 

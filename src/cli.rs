@@ -7,7 +7,7 @@ use clap::builder::PathBufValueParser;
 use clap::{Arg, ArgAction, Command};
 
 use crate::error::ErrorWithSource;
-use crate::module::{module_ast, module_check, module_program, module_tokens};
+use crate::stage::{check, lex, parse, parse_all};
 
 pub enum CliError {
     Message(String),
@@ -26,6 +26,7 @@ impl CliError {
 struct Build {
     stdout: bool,
     no_std: bool,
+    check: bool,
     entry_file: PathBuf,
     output_dir: PathBuf,
 }
@@ -33,10 +34,6 @@ struct Build {
 impl Build {
     fn should_write_to_stdout(&self) -> bool {
         self.stdout
-    }
-
-    fn entry_file_string(&self) -> String {
-        self.entry_file.to_string_lossy().into_owned()
     }
 
     fn entry_file_parent(&self) -> Option<&Path> {
@@ -64,9 +61,7 @@ impl Build {
         let mut output_file = self
             .entry_file_parent()
             .map_or(input_file, |parent| {
-                input_file
-                    .strip_prefix(parent)
-                    .expect("parent was extracted from the entry file so it should match")
+                input_file.strip_prefix(parent).unwrap_or(input_file)
             })
             .to_path_buf();
 
@@ -79,12 +74,6 @@ impl Build {
 struct Check {
     entry_file: PathBuf,
     debug: bool,
-}
-
-impl Check {
-    fn entry_file_string(&self) -> String {
-        self.entry_file.to_string_lossy().into_owned()
-    }
 }
 
 pub fn run() -> Result<(), CliError> {
@@ -101,9 +90,12 @@ pub fn run() -> Result<(), CliError> {
             })?;
         }
         Some(("build", sub_matches)) => {
+            dbg!(matches.get_flag("no-check"));
+
             run_build(&Build {
                 stdout: sub_matches.get_flag("stdout"),
                 no_std: sub_matches.get_flag("no_std"),
+                check: !sub_matches.get_flag("no-check"),
                 entry_file: sub_matches
                     .get_one::<PathBuf>("input")
                     .ok_or_else(|| CliError::message("Couldn't determine input path."))?
@@ -118,6 +110,7 @@ pub fn run() -> Result<(), CliError> {
             run_run(&Build {
                 stdout: false,
                 no_std: sub_matches.get_flag("no_std"),
+                check: !sub_matches.get_flag("no-check"),
                 entry_file: sub_matches
                     .get_one::<PathBuf>("input")
                     .ok_or_else(|| CliError::message("Couldn't determine input path."))?
@@ -148,6 +141,7 @@ pub fn run() -> Result<(), CliError> {
             run_lex(&Build {
                 stdout: true,
                 no_std: true,
+                check: false,
                 entry_file: sub_matches
                     .get_one::<PathBuf>("input")
                     .ok_or_else(|| CliError::message("Couldn't determine input path."))?
@@ -159,6 +153,7 @@ pub fn run() -> Result<(), CliError> {
             run_parse(&Build {
                 stdout: true,
                 no_std: true,
+                check: false,
                 entry_file: sub_matches
                     .get_one::<PathBuf>("input")
                     .ok_or_else(|| CliError::message("Couldn't determine input path."))?
@@ -269,6 +264,7 @@ fn command_build() -> Command {
                 .help("Write program output to stdout instead of a file"),
         )
         .arg(arg_no_std())
+        .arg(arg_check())
         .arg(arg_input())
         .arg(arg_output())
 }
@@ -277,6 +273,7 @@ fn command_run() -> Command {
     Command::new("run")
         .about("Builds and runs an Oxiby program")
         .arg(arg_no_std())
+        .arg(arg_check())
         .arg(arg_input())
         .arg(arg_output())
 }
@@ -318,6 +315,13 @@ fn arg_no_std() -> Arg {
         .help("Don't build the standard library")
 }
 
+fn arg_check() -> Arg {
+    Arg::new("no-check")
+        .long("no-check")
+        .action(ArgAction::SetTrue)
+        .help("Don't type check the program before building")
+}
+
 fn arg_input() -> Arg {
     Arg::new("input")
         .value_name("INPUT")
@@ -334,17 +338,18 @@ fn arg_output() -> Arg {
         .default_value("build")
 }
 
-fn run_check(check: &Check) -> Result<(), CliError> {
-    let source = read_file(&check.entry_file)?;
+fn run_check(chk: &Check) -> Result<(), CliError> {
+    let source = read_file(&chk.entry_file)?;
+    let mut modules = HashMap::new();
 
-    module_check(&source, check.debug).map_err(|errors| {
-        CliError::Source(
-            errors
-                .into_iter()
-                .map(|error| ErrorWithSource::from_error(check.entry_file_string(), &source, error))
-                .collect(),
-        )
-    })
+    modules = check(&source, &chk.entry_file, chk.entry_file.parent(), modules)
+        .map_err(CliError::Source)?;
+
+    if chk.debug {
+        dbg!(modules);
+    }
+
+    Ok(())
 }
 
 fn run_build(build: &Build) -> Result<(), CliError> {
@@ -355,41 +360,50 @@ fn run_build(build: &Build) -> Result<(), CliError> {
             .map_err(|errs| CliError::message(&errs.join(", ")))?;
     }
 
-    let compiled_modules = HashMap::new();
-
     let source = read_file(&build.entry_file)?;
+    let mut modules = HashMap::new();
 
-    match module_program(
-        &build.entry_file,
-        build.entry_file.parent(),
-        &source,
-        compiled_modules,
-        true,
-    ) {
-        Ok(compiled_modules) => {
-            for (input_path, output) in compiled_modules {
-                if build.should_write_to_stdout() {
-                    println!("{output}");
-                } else {
-                    let output_file = build.output_file(&input_path);
+    if build.check {
+        modules = check(
+            &source,
+            &build.entry_file,
+            build.entry_file.parent(),
+            modules,
+        )
+        .map_err(CliError::Source)?;
+    } else {
+        parse_all(
+            &source,
+            &build.entry_file,
+            build.entry_file.parent(),
+            &mut modules,
+            true,
+        )
+        .map_err(CliError::Source)?;
+    }
 
-                    if let Some(parent) = output_file.parent() {
-                        std::fs::create_dir_all(parent)
-                            .map_err(|error| CliError::message(&error))?;
-                    }
+    for (module_path, items) in modules {
+        let output = crate::compile_module(module_path.clone(), &items, false);
 
-                    std::fs::write(&output_file, output.strip_suffix('\n').unwrap_or(&output))
-                        .map_err(|error| {
-                            CliError::message(&format!(
-                                "trying to write module to {}: {}",
-                                output_file.display(),
-                                error,
-                            ))
-                        })?;
-                }
+        if build.should_write_to_stdout() {
+            println!("{output}");
+        } else {
+            let output_file = build.output_file(&module_path.to_path_buf());
+
+            if let Some(parent) = output_file.parent() {
+                std::fs::create_dir_all(parent).map_err(|error| CliError::message(&error))?;
             }
+
+            std::fs::write(&output_file, output.strip_suffix('\n').unwrap_or(&output)).map_err(
+                |error| {
+                    CliError::message(&format!(
+                        "trying to write module to {}: {}",
+                        output_file.display(),
+                        error,
+                    ))
+                },
+            )?;
         }
-        Err(errors) => return Err(CliError::Source(errors)),
     }
 
     Ok(())
@@ -445,34 +459,24 @@ fn run_new(mut path: PathBuf) -> Result<(), CliError> {
 
 fn run_lex(build: &Build) -> Result<(), CliError> {
     let source = read_file(&build.entry_file)?;
+    let tokens = lex(&source, &build.entry_file)
+        .map_err(CliError::Source)?
+        .into_iter()
+        .map(|spanned_token| (spanned_token.inner, spanned_token.span))
+        .collect::<Vec<_>>();
+    let output = format!("{tokens:#?}");
 
-    let tokens = module_tokens(&source).map_err(|errors| {
-        CliError::Source(
-            errors
-                .into_iter()
-                .map(|error| ErrorWithSource::from_error(build.entry_file_string(), &source, error))
-                .collect(),
-        )
-    })?;
-
-    println!("{}", tokens.trim_end());
+    println!("{}", output.trim_end());
 
     Ok(())
 }
 
 fn run_parse(build: &Build) -> Result<(), CliError> {
     let source = read_file(&build.entry_file)?;
+    let ast = parse(&source, &build.entry_file).map_err(CliError::Source)?;
+    let output = format!("{ast:#?}");
 
-    let ast = module_ast(&source).map_err(|errors| {
-        CliError::Source(
-            errors
-                .into_iter()
-                .map(|error| ErrorWithSource::from_error(build.entry_file_string(), &source, error))
-                .collect(),
-        )
-    })?;
-
-    println!("{}", ast.trim_end());
+    println!("{}", output.trim_end());
 
     Ok(())
 }

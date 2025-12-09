@@ -291,10 +291,10 @@ impl Infer for ExprCall {
             }
         }
 
-        let (ty, members) = if let Some((ty, members)) = checker.type_constructors.get(name) {
+        let (ty, members) = if let Some((ty, members)) = checker.get_type_constructor(name) {
             (ty.clone(), members.clone())
         } else {
-            panic!("TODO: Couldn't infer ExprCall.")
+            panic!("TODO: Couldn't infer ExprCall. Unknown type constructor: {name}")
         };
 
         if let Some(tuple_constructor_ty) = members.value_constructors.get(name) {

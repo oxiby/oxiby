@@ -1,10 +1,10 @@
 use std::fmt::Display;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::expr::ExprIdent;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct OxibyModulePath(Vec<String>);
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
+pub struct OxibyModulePath(Vec<String>, bool);
 
 impl OxibyModulePath {
     pub fn len(&self) -> usize {
@@ -13,6 +13,18 @@ impl OxibyModulePath {
 
     pub fn parts(&self) -> &[String] {
         &self.0
+    }
+
+    pub fn is_entry(&self) -> bool {
+        self.1
+    }
+
+    pub fn set_is_entry(&mut self, value: bool) {
+        self.1 = value;
+    }
+
+    pub fn to_path_buf(&self) -> PathBuf {
+        self.parts().join("/").into()
     }
 }
 
@@ -24,7 +36,7 @@ impl Display for OxibyModulePath {
 
 impl From<&[&str]> for OxibyModulePath {
     fn from(value: &[&str]) -> Self {
-        Self(value.iter().map(ToString::to_string).collect())
+        Self(value.iter().map(ToString::to_string).collect(), false)
     }
 }
 
@@ -72,13 +84,13 @@ impl TryFrom<&Path> for OxibyModulePath {
             }
         }
 
-        Ok(Self(parts))
+        Ok(Self(parts, false))
     }
 }
 
 impl From<Vec<ExprIdent>> for OxibyModulePath {
     fn from(value: Vec<ExprIdent>) -> Self {
-        Self(value.iter().map(ToString::to_string).collect())
+        Self(value.iter().map(ToString::to_string).collect(), false)
     }
 }
 

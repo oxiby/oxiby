@@ -550,7 +550,7 @@ impl Infer for Expr {
             Self::TypeIdent(expr_type_ident) => {
                 let name = expr_type_ident.as_str();
 
-                match checker.type_constructors.get(name) {
+                match checker.get_type_constructor(name) {
                     Some((ty, members)) => match ty {
                         check::Type::Constructor(_) if members.value_constructors.is_empty() => {
                             ty.clone()

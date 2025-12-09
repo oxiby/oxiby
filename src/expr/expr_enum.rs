@@ -105,7 +105,7 @@ impl Infer for ExprEnum {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let name = self.ty.as_str();
 
-        let (ty, members) = match checker.type_constructors.get(name) {
+        let (ty, members) = match checker.get_type_constructor(name) {
             Some((ty, members)) => (ty.clone(), members.clone()),
             None => {
                 return Err(Error::build("Unknown type")

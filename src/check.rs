@@ -407,36 +407,26 @@ impl TypeMembers {
 }
 
 #[derive(Debug)]
-pub struct Checker {
-    counter: usize,
-    pub(crate) type_constructors: HashMap<String, (Type, TypeMembers)>,
-    pub(crate) variables: HashMap<String, Type>,
+pub struct Module {
+    type_constructors: HashMap<String, (Type, TypeMembers)>,
+    variables: HashMap<String, Type>,
 }
 
-impl Checker {
+impl Module {
     pub fn new() -> Self {
-        let mut this = Self {
-            counter: 0,
-            type_constructors: HashMap::new(),
-            variables: HashMap::new(),
-        };
+        let mut type_constructors = HashMap::new();
+        let mut variables = HashMap::new();
 
-        this.type_constructors
-            .insert("Boolean".to_owned(), (Type::boolean(), TypeMembers::new()));
-        this.type_constructors
-            .insert("Float".to_owned(), (Type::float(), TypeMembers::new()));
-        this.type_constructors
-            .insert("Integer".to_owned(), (Type::integer(), TypeMembers::new()));
-        this.type_constructors
-            .insert("String".to_owned(), (Type::string(), TypeMembers::new()));
-        this.type_constructors
-            .insert("Range".to_owned(), (Type::range(), TypeMembers::new()));
+        type_constructors.insert("Boolean".to_owned(), (Type::boolean(), TypeMembers::new()));
+        type_constructors.insert("Float".to_owned(), (Type::float(), TypeMembers::new()));
+        type_constructors.insert("Integer".to_owned(), (Type::integer(), TypeMembers::new()));
+        type_constructors.insert("String".to_owned(), (Type::string(), TypeMembers::new()));
+        type_constructors.insert("Range".to_owned(), (Type::range(), TypeMembers::new()));
 
         let list_ty = Type::list();
-        this.type_constructors
-            .insert(list_ty.base_name(), (list_ty, TypeMembers::new()));
+        type_constructors.insert(list_ty.base_name(), (list_ty, TypeMembers::new()));
 
-        this.variables.insert(
+        variables.insert(
             "print_line".to_owned(),
             Type::Fn(Function::r#static(
                 "print_line".to_owned(),
@@ -446,7 +436,58 @@ impl Checker {
             )),
         );
 
-        this
+        Self {
+            type_constructors,
+            variables,
+        }
+    }
+
+    pub fn get_type_constructor(&self, name: &str) -> Option<(&Type, &TypeMembers)> {
+        self.type_constructors.get(name).map(|(ty, mem)| (ty, mem))
+    }
+
+    pub fn add_type_constructor<N>(&mut self, name: &N, contents: (Type, TypeMembers))
+    where
+        N: ToString,
+    {
+        self.type_constructors.insert(name.to_string(), contents);
+    }
+
+    pub fn variables(&self) -> impl Iterator<Item = (&String, &Type)> {
+        self.variables.iter()
+    }
+
+    pub fn add_variable<N>(&mut self, name: &N, ty: Type)
+    where
+        N: ToString,
+    {
+        self.variables.insert(name.to_string(), ty);
+    }
+}
+
+#[derive(Debug)]
+pub struct Checker {
+    counter: usize,
+    current_module: usize,
+    module_map: HashMap<String, usize>,
+    modules: Vec<Module>,
+}
+
+impl Checker {
+    pub fn new() -> Self {
+        Self {
+            counter: 0,
+            current_module: 0,
+            module_map: HashMap::new(),
+            modules: vec![Module::new()],
+        }
+    }
+
+    pub fn get_type_constructor(&self, name: &str) -> Option<(&Type, &TypeMembers)> {
+        self.current_module()
+            .type_constructors
+            .get(name)
+            .map(|(ty, mem)| (ty, mem))
     }
 
     pub fn create_type_var(&mut self) -> TypeVar {
@@ -458,17 +499,29 @@ impl Checker {
     }
 
     pub fn substitute(&mut self, target: &Type, variable: &str, replacement: &Type) -> Type {
-        let Some((_ty, members)) = self.type_constructors.get(&target.base_name()) else {
+        let Some((_ty, members)) = self
+            .current_module()
+            .type_constructors
+            .get(&target.base_name())
+        else {
             return target.clone();
         };
 
         let new_ty = target.clone().substitute(variable, replacement);
         let new_members = members.substitute(variable, replacement);
 
-        self.type_constructors
-            .insert(new_ty.full_name(), (new_ty.clone(), new_members));
+        self.current_module_mut()
+            .add_type_constructor(&new_ty.full_name(), (new_ty.clone(), new_members));
 
         new_ty
+    }
+
+    fn current_module(&self) -> &Module {
+        &self.modules[self.current_module]
+    }
+
+    fn current_module_mut(&mut self) -> &mut Module {
+        &mut self.modules[self.current_module]
     }
 
     pub fn check(&mut self, items: Vec<Item>) -> Result<(), Error> {
@@ -477,7 +530,7 @@ impl Checker {
             if let Item::Fn(item_fn) = item {
                 let (name, function) = collect_fn(item_fn)?;
 
-                self.variables.insert(name, function);
+                self.current_module_mut().add_variable(&name, function);
             } else if let Item::Struct(item_struct) = item {
                 let mut ty: Type = item_struct.ty.clone().into();
 
@@ -526,7 +579,8 @@ impl Checker {
                     }
                 }
 
-                self.type_constructors.insert(ty.base_name(), (ty, members));
+                self.current_module_mut()
+                    .add_type_constructor(&ty.base_name(), (ty, members));
             } else if let Item::Enum(item_enum) = item {
                 let ty: Type = item_enum.ty.clone().into();
 
@@ -587,7 +641,8 @@ impl Checker {
                     }
                 }
 
-                self.type_constructors.insert(name, (ty, members));
+                self.current_module_mut()
+                    .add_type_constructor(&name, (ty, members));
             }
         }
 
@@ -595,8 +650,8 @@ impl Checker {
         for item in items {
             if let Item::Fn(item_fn) = item {
                 let mut context = Context(
-                    self.variables
-                        .iter()
+                    self.current_module()
+                        .variables()
                         .map(|(name, ty)| Entry::TermVar(name.clone(), ty.clone()))
                         .collect(),
                 );

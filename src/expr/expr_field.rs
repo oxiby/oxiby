@@ -44,7 +44,7 @@ impl WriteRuby for ExprField {
 impl Infer for ExprField {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let ty: check::Type = if let Expr::TypeIdent(ref expr_type_ident) = *self.lhs {
-            let (lhs_ty, members) = match checker.type_constructors.get(expr_type_ident.as_str()) {
+            let (lhs_ty, members) = match checker.get_type_constructor(expr_type_ident.as_str()) {
                 Some((lhs_ty, members)) => (lhs_ty.clone(), members.clone()),
                 None => {
                     return Err(Error::build("Unknown type")
@@ -114,7 +114,7 @@ impl Infer for ExprField {
         } else if let Expr::ExprIdent(ref expr_ident) = *self.lhs {
             let lhs_ty = context.find(expr_ident.as_str(), expr_ident.span)?;
 
-            let members = match checker.type_constructors.get(&lhs_ty.full_name()) {
+            let members = match checker.get_type_constructor(&lhs_ty.full_name()) {
                 Some((_ty, members)) => members.clone(),
                 None => panic!(
                     "Should always exist because we were able to find the type in the context."

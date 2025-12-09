@@ -140,6 +140,10 @@ impl ItemUse {
         path_buf
     }
 
+    pub fn relative_file_path(&self) -> PathBuf {
+        self.file_path(None)
+    }
+
     pub fn module_path(&self) -> String {
         self.path
             .iter()
