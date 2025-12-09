@@ -800,7 +800,7 @@ impl Infer for ExprField<'_> {
                             &format!(
                                 "Value `{}` is of type `{lhs_ty}` but is being called as a \
                                  function.",
-                                rhs_ty.name()
+                                rhs_ty.full_name()
                             ),
                             self.span,
                         )
@@ -839,7 +839,7 @@ impl Infer for ExprField<'_> {
         } else if let Expr::ExprIdent(ref expr_ident) = *self.lhs {
             let lhs_ty = context.find(expr_ident.as_str(), expr_ident.span)?;
 
-            let members = match checker.type_constructors.get(&lhs_ty.name()) {
+            let members = match checker.type_constructors.get(&lhs_ty.full_name()) {
                 Some((_ty, members)) => members.clone(),
                 None => panic!(
                     "Should always exist because we were able to find the type in the context."
@@ -864,7 +864,7 @@ impl Infer for ExprField<'_> {
                             &format!(
                                 "Value `{}` is of type `{rhs_ty}` but is being called as a \
                                  function.",
-                                rhs_ty.name()
+                                rhs_ty.full_name()
                             ),
                             self.span,
                         )
@@ -893,7 +893,7 @@ impl Infer for ExprField<'_> {
                 )?
             } else if let Expr::Integer(expr_integer) = &*self.rhs {
                 let Some(check::Type::Fn(function)) =
-                    members.value_constructors.get(&lhs_ty.to_string())
+                    members.value_constructors.get(&lhs_ty.base_name())
                 else {
                     return Err(Error::build("Unknown field")
                         .with_detail(

@@ -100,10 +100,12 @@ impl Infer for ExprEnum<'_> {
 
         let (ty, members) = match checker.type_constructors.get(name) {
             Some((ty, members)) => (ty.clone(), members.clone()),
-            None => return Err(Error::build("Unknown type")
-                .with_detail(&format!("Type `{name}` is not in scope."), self.span)
-                .with_help("You might need to import this type from another module.")
-                .finish()),
+            None => {
+                return Err(Error::build("Unknown type")
+                    .with_detail(&format!("Type `{name}` is not in scope."), self.span)
+                    .with_help("You might need to import this type from another module.")
+                    .finish());
+            }
         };
 
         let variant_name = self.variant.as_str();

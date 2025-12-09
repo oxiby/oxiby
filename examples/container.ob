@@ -4,6 +4,11 @@ fn main() {
     let contained_integer = Container(1)
     let contained_string = Container("Oxiby")
 
+    // Print the inner fields of each container.
+    print_line(contained_integer.0)
+    print_line(contained_string.0)
+
+    // Print each container themselves.
     print_line(contained_integer)
     print_line(contained_string)
 }

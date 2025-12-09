@@ -157,7 +157,10 @@ pub fn infer_function<'a>(
             EitherOrBoth::Both(ty, expr) => {
                 let expr_ty = expr.infer(checker, context)?;
 
-                if *ty != expr_ty {
+                if let check::Type::Variable(ty_var) = ty {
+                    return Ok(checker.substitute(&function.return_type.clone(), ty_var, &expr_ty));
+                    // return Ok(function.return_type.clone().substitute(ty_var, &expr_ty));
+                } else if *ty != expr_ty {
                     return Err(Error::type_mismatch()
                         .with_detail(
                             &format!("Argument was expected to be `{ty}` but was `{expr_ty}`."),
@@ -256,28 +259,34 @@ impl Infer for ExprCall<'_> {
 
         if let Some(ty) = context.get(name) {
             match ty {
-                check::Type::Fn(function) => return infer_function(
-                    checker,
-                    context,
-                    &function,
-                    self.positional_args.iter(),
-                    self.span,
-                    Noun::Function,
-                ),
-                ty => return Err(Error::type_mismatch()
-                    .with_detail(
-                        &format!(
-                            "Value `{name}` is of type `{ty}` but is being called as a function."
-                        ),
+                check::Type::Fn(function) => {
+                    return infer_function(
+                        checker,
+                        context,
+                        &function,
+                        self.positional_args.iter(),
                         self.span,
-                    )
-                    .finish()),
+                        Noun::Function,
+                    );
+                }
+                ty => {
+                    return Err(Error::type_mismatch()
+                        .with_detail(
+                            &format!(
+                                "Value `{name}` is of type `{ty}` but is being called as a \
+                                 function."
+                            ),
+                            self.span,
+                        )
+                        .finish());
+                }
             }
         }
 
-        let (ty, members) = match checker.type_constructors.get(name) {
-            Some((ty, members)) => (ty.clone(), members.clone()),
-            None => panic!("TODO: Couldn't infer ExprCall."),
+        let (ty, members) = if let Some((ty, members)) = checker.type_constructors.get(name) {
+            (ty.clone(), members.clone())
+        } else {
+            panic!("TODO: Couldn't infer ExprCall.")
         };
 
         if let Some(tuple_constructor_ty) = members.value_constructors.get(name) {
@@ -297,8 +306,8 @@ impl Infer for ExprCall<'_> {
             Err(Error::build("Invalid struct literal")
                 .with_detail(
                     &format!(
-                        "Struct `{ty}` is not a tuple struct and cannot be constructed with \
-                         the syntax `{ty}(...)`."
+                        "Struct `{ty}` is not a tuple struct and cannot be constructed with the \
+                         syntax `{ty}(...)`."
                     ),
                     self.span,
                 )

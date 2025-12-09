@@ -68,7 +68,7 @@ impl Infer for ExprForLoop<'_> {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let element_type = match self.items.infer(checker, context)? {
             ref items_type @ check::Type::Generic(ref constructor_type, ref generic_types) => {
-                let name = constructor_type.name();
+                let name = constructor_type.base_name();
                 if name == "List" {
                     vec![generic_types[0].clone()]
                 } else if name == "Map" {

@@ -116,11 +116,23 @@ impl Type {
         Self::Constructor(s.into())
     }
 
-    pub fn name(&self) -> String {
+    pub fn base_name(&self) -> String {
         match self {
             Self::Primitive(primitive_type) => primitive_type.to_string(),
             Self::Constructor(name) => name.to_string(),
             Self::Generic(ty, _) | Self::RecordStruct(ty, _) => ty.to_string(),
+            Self::Variable(variable) => variable.to_string(),
+            Self::Tuple(_) => "<tuple name placeholder>".to_string(),
+            Self::Fn(_) => "<function name placeholder>".to_string(),
+        }
+    }
+
+    pub fn full_name(&self) -> String {
+        match self {
+            Self::Primitive(primitive_type) => primitive_type.to_string(),
+            Self::Constructor(name) => name.to_string(),
+            ty @ Self::Generic(..) => ty.to_string(),
+            Self::RecordStruct(ty, _) => ty.to_string(),
             Self::Variable(variable) => variable.to_string(),
             Self::Tuple(_) => "<tuple name placeholder>".to_string(),
             Self::Fn(_) => "<function name placeholder>".to_string(),
@@ -133,12 +145,36 @@ impl Type {
     {
         Self::Variable(s.into())
     }
+
+    pub fn is_variable(&self) -> bool {
+        matches!(self, Self::Variable(_))
+    }
+
     pub fn unit() -> Self {
         Self::Tuple(Vec::with_capacity(0))
     }
 
     pub fn is_unit(&self) -> bool {
         matches!(self, Self::Tuple(types) if types.is_empty())
+    }
+
+    fn substitute(self, variable: &str, replacement: &Self) -> Self {
+        let mut substituted = self.clone();
+
+        match substituted {
+            Self::Generic(ref mut _ty, ref mut params) => {
+                for param in params {
+                    if matches!(param, Type::Variable(name) if name == variable) {
+                        *param = replacement.clone();
+                    }
+                }
+            }
+            _ => {
+                todo!("TODO: Type variable substitution for {self}");
+            }
+        }
+
+        substituted
     }
 }
 
@@ -185,7 +221,18 @@ impl From<crate::types::Type<'_>> for Type {
                 "Integer" => Self::integer(),
                 "String" => Self::string(),
                 "Range" => Self::range(),
-                name => Self::constructor(name.to_string()),
+                name => {
+                    let constructor = Self::constructor(name.to_string());
+
+                    if let Some(params) = concrete_type.params {
+                        Self::Generic(
+                            Box::new(constructor),
+                            params.iter().cloned().map(Into::into).collect(),
+                        )
+                    } else {
+                        constructor
+                    }
+                }
             },
             crate::types::Type::Variable(expr_ident) => Self::Variable(expr_ident.to_string()),
             crate::types::Type::Tuple(types) => {
@@ -292,6 +339,26 @@ impl Function {
             return_type: Box::new(return_type),
         }
     }
+
+    fn substitute(&self, variable: &str, replacement: &Type) -> Self {
+        let mut substituted = self.clone();
+
+        for param in &mut substituted.positional_params {
+            if matches!(param, Type::Variable(name) if name == variable) {
+                *param = replacement.clone();
+            }
+        }
+
+        for (_, param) in &mut substituted.keyword_params {
+            if matches!(param, Type::Variable(name) if name == variable) {
+                *param = replacement.clone();
+            }
+        }
+
+        *substituted.return_type = substituted.return_type.substitute(variable, replacement);
+
+        substituted
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -306,6 +373,36 @@ impl TypeMembers {
             value_constructors: HashMap::new(),
             functions: HashMap::new(),
         }
+    }
+
+    fn substitute(&self, variable: &str, replacement: &Type) -> Self {
+        let mut substituted = self.clone();
+
+        for ctor_ty in substituted.value_constructors.values_mut() {
+            match ctor_ty {
+                Type::Fn(function) => {
+                    *ctor_ty = Type::Fn(function.substitute(variable, replacement));
+                }
+                _ => todo!(
+                    "TypeMembers::substitute can only replace value constructors that are \
+                     functions."
+                ),
+            }
+        }
+
+        for fn_ty in substituted.functions.values_mut() {
+            match fn_ty {
+                Type::Fn(function) => {
+                    *fn_ty = Type::Fn(function.substitute(variable, replacement));
+                }
+                _ => todo!(
+                    "TypeMembers::substitute can only replace value constructors that are \
+                     functions."
+                ),
+            }
+        }
+
+        substituted
     }
 }
 
@@ -335,14 +432,15 @@ impl Checker {
         this.type_constructors
             .insert("Range".to_owned(), (Type::range(), TypeMembers::new()));
 
+        let list_ty = Type::list();
         this.type_constructors
-            .insert("List".to_owned(), (Type::list(), TypeMembers::new()));
+            .insert(list_ty.base_name(), (list_ty, TypeMembers::new()));
 
         this.variables.insert(
             "print_line".to_owned(),
             Type::Fn(Function::r#static(
                 "print_line".to_owned(),
-                vec![Type::string()],
+                vec![Type::variable("s")],
                 vec![],
                 Type::unit(),
             )),
@@ -359,6 +457,20 @@ impl Checker {
         type_var
     }
 
+    pub fn substitute(&mut self, target: &Type, variable: &str, replacement: &Type) -> Type {
+        let Some((_ty, members)) = self.type_constructors.get(&target.base_name()) else {
+            return target.clone();
+        };
+
+        let new_ty = target.clone().substitute(variable, replacement);
+        let new_members = members.substitute(variable, replacement);
+
+        self.type_constructors
+            .insert(new_ty.full_name(), (new_ty.clone(), new_members));
+
+        new_ty
+    }
+
     pub fn check(&mut self, items: Vec<Item>) -> Result<(), Error> {
         // First pass: Collect declarations.
         for item in &items {
@@ -369,34 +481,28 @@ impl Checker {
             } else if let Item::Struct(item_struct) = item {
                 let mut ty: Type = item_struct.ty.clone().into();
 
-                let name = match ty {
-                    Type::Primitive(primitive_type) => {
-                        return Err(Error::build("Duplicate type definition")
-                            .with_detail(
-                                &format!(
-                                    "This type name conflicts with the primitive type \
-                                     `{primitive_type}`."
-                                ),
-                                item_struct.ty.span().unwrap_or((0..0).into()),
-                            )
-                            .finish());
-                    }
-                    Type::Constructor(ref name) => name.clone(),
-                    _ => todo!("Type {ty} is not yet supported by the type checker"),
-                };
+                if let Type::Primitive(primitive_type) = ty {
+                    return Err(Error::build("Duplicate type definition")
+                        .with_detail(
+                            &format!(
+                                "This type name conflicts with the primitive type \
+                                 `{primitive_type}`."
+                            ),
+                            item_struct.ty.span().unwrap_or((0..0).into()),
+                        )
+                        .finish());
+                }
 
                 let mut members = TypeMembers::new();
 
                 if let Some(fields) = item_struct.tuple_fields() {
-                    ty = Type::constructor(&name);
-
                     let member_fields =
                         fields.iter().map(|field| field.ty.clone().into()).collect();
 
                     members.value_constructors.insert(
-                        name.clone(),
+                        ty.base_name(),
                         Type::Fn(Function::r#static(
-                            name.clone(),
+                            ty.base_name(),
                             member_fields,
                             Vec::new(),
                             ty.clone(),
@@ -420,7 +526,7 @@ impl Checker {
                     }
                 }
 
-                self.type_constructors.insert(name.clone(), (ty, members));
+                self.type_constructors.insert(ty.base_name(), (ty, members));
             } else if let Item::Enum(item_enum) = item {
                 let ty: Type = item_enum.ty.clone().into();
 
