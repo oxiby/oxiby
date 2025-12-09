@@ -145,7 +145,7 @@ impl Noun {
 }
 
 pub fn infer_function<'a>(
-    checker: &Checker,
+    checker: &mut Checker,
     context: &mut Context,
     function: &check::Function,
     call_args: impl Iterator<Item = &'a Expr<'a>>,
@@ -251,12 +251,12 @@ impl WriteRuby for ExprCall<'_> {
 }
 
 impl Infer for ExprCall<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let name = self.name.as_str();
 
         if let Some(ty) = context.get(name) {
             match ty {
-                check::Type::Fn(function) => infer_function(
+                check::Type::Fn(function) => return infer_function(
                     checker,
                     context,
                     &function,
@@ -264,7 +264,7 @@ impl Infer for ExprCall<'_> {
                     self.span,
                     Noun::Function,
                 ),
-                ty => Err(Error::type_mismatch()
+                ty => return Err(Error::type_mismatch()
                     .with_detail(
                         &format!(
                             "Value `{name}` is of type `{ty}` but is being called as a function."
@@ -273,43 +273,46 @@ impl Infer for ExprCall<'_> {
                     )
                     .finish()),
             }
-        } else if let Some((ty, members)) = checker.type_constructors.get(name) {
-            if let Some(tuple_constructor_ty) = members.value_constructors.get(name) {
-                let check::Type::Fn(function) = tuple_constructor_ty else {
-                    panic!("TODO: Tuple constructor wasn't a function.");
-                };
+        }
 
-                infer_function(
-                    checker,
-                    context,
-                    function,
-                    self.positional_args.iter(),
-                    self.span,
-                    Noun::Struct,
-                )
-            } else {
-                Err(Error::build("Invalid struct literal")
-                    .with_detail(
-                        &format!(
-                            "Struct `{ty}` is not a tuple struct and cannot be constructed with \
-                             the syntax `{ty}(...)`."
-                        ),
-                        self.span,
-                    )
-                    .with_help(
-                        &(if matches!(ty, check::Type::RecordStruct(_, _)) {
-                            format!("Try using record struct syntax: `{ty} {{ ... }}`")
-                        } else {
-                            format!(
-                                "Try using unit struct syntax by omitting the parenthesized \
-                                 arguments: `{ty}`"
-                            )
-                        }),
-                    )
-                    .finish())
-            }
+        let (ty, members) = match checker.type_constructors.get(name) {
+            Some((ty, members)) => (ty.clone(), members.clone()),
+            None => panic!("TODO: Couldn't infer ExprCall."),
+        };
+
+        if let Some(tuple_constructor_ty) = members.value_constructors.get(name) {
+            let check::Type::Fn(function) = tuple_constructor_ty else {
+                panic!("TODO: Tuple constructor wasn't a function.");
+            };
+
+            infer_function(
+                checker,
+                context,
+                function,
+                self.positional_args.iter(),
+                self.span,
+                Noun::Struct,
+            )
         } else {
-            panic!("TODO: Couldn't infer ExprCall.");
+            Err(Error::build("Invalid struct literal")
+                .with_detail(
+                    &format!(
+                        "Struct `{ty}` is not a tuple struct and cannot be constructed with \
+                         the syntax `{ty}(...)`."
+                    ),
+                    self.span,
+                )
+                .with_help(
+                    &(if matches!(ty, check::Type::RecordStruct(_, _)) {
+                        format!("Try using record struct syntax: `{ty} {{ ... }}`")
+                    } else {
+                        format!(
+                            "Try using unit struct syntax by omitting the parenthesized \
+                             arguments: `{ty}`"
+                        )
+                    }),
+                )
+                .finish())
         }
     }
 }

@@ -26,7 +26,7 @@ impl WriteRuby for ExprList<'_> {
 }
 
 impl Infer for ExprList<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let (inferred, span) = match self.exprs.first() {
             Some(expr) => (expr.infer(checker, context)?, expr.span()),
             None => {

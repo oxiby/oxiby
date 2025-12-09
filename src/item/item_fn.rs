@@ -121,7 +121,7 @@ impl WriteRuby for ItemFn<'_> {
 }
 
 impl Infer for ItemFn<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let mut inferred = check::Type::unit();
 
         for expr in &self.body {

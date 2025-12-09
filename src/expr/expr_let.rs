@@ -77,7 +77,7 @@ impl WriteRuby for ExprLet<'_> {
 }
 
 impl Infer for ExprLet<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let mut inferred = check::Type::unit();
 
         match &self.pattern {

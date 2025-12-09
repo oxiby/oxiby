@@ -529,7 +529,7 @@ impl WriteRuby for Expr<'_> {
 }
 
 impl Infer for Expr<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let ty = match self {
             // Literals
             Self::Boolean(..) => check::Type::boolean(),
@@ -639,7 +639,7 @@ impl WriteRuby for ExprBinary<'_> {
 }
 
 impl Infer for ExprBinary<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let lhs_type = self.lhs.infer(checker, context)?;
         let rhs_type = self.rhs.infer(checker, context)?;
 
@@ -680,7 +680,7 @@ impl WriteRuby for ExprUnary<'_> {
 }
 
 impl Infer for ExprUnary<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let ty = (*self.expr).infer(checker, context)?;
 
         match self.op {
@@ -767,17 +767,19 @@ impl WriteRuby for ExprField<'_> {
 }
 
 impl Infer for ExprField<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let ty: check::Type = if let Expr::TypeIdent(ref expr_type_ident) = *self.lhs {
-            let Some((lhs_ty, members)) = checker.type_constructors.get(expr_type_ident.as_str())
-            else {
-                return Err(Error::build("Unknown type")
-                    .with_detail(
-                        &format!("Type `{}` is not in scope.", expr_type_ident.as_str()),
-                        expr_type_ident.span,
-                    )
-                    .with_help("You might need to import this type from another module.")
-                    .finish());
+            let (lhs_ty, members) = match checker.type_constructors.get(expr_type_ident.as_str()) {
+                Some((lhs_ty, members)) => (lhs_ty.clone(), members.clone()),
+                None => {
+                    return Err(Error::build("Unknown type")
+                        .with_detail(
+                            &format!("Type `{}` is not in scope.", expr_type_ident.as_str()),
+                            expr_type_ident.span,
+                        )
+                        .with_help("You might need to import this type from another module.")
+                        .finish());
+                }
             };
 
             if let Expr::Call(ref expr_call) = *self.rhs {
@@ -837,9 +839,12 @@ impl Infer for ExprField<'_> {
         } else if let Expr::ExprIdent(ref expr_ident) = *self.lhs {
             let lhs_ty = context.find(expr_ident.as_str(), expr_ident.span)?;
 
-            let (_, members) = checker.type_constructors.get(&lhs_ty.name()).expect(
-                "Should always exist because we were able to find the type in the context.",
-            );
+            let members = match checker.type_constructors.get(&lhs_ty.name()) {
+                Some((_ty, members)) => members.clone(),
+                None => panic!(
+                    "Should always exist because we were able to find the type in the context."
+                ),
+            };
 
             if let Expr::Call(ref expr_call) = *self.rhs {
                 let name = expr_call.name.as_str();
@@ -953,7 +958,7 @@ impl WriteRuby for ExprIndex<'_> {
 }
 
 impl Infer for ExprIndex<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let expr_ty = self.expr.infer(checker, context)?;
         let index_ty = (*self.index).infer(checker, context)?;
 

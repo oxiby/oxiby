@@ -9,7 +9,7 @@ use crate::error::Error;
 use crate::item::{Item, ItemFn, Variant};
 
 pub trait Infer {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<Type, Error>;
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<Type, Error>;
 }
 
 #[derive(Debug, Clone)]
@@ -294,7 +294,7 @@ impl Function {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TypeMembers {
     pub(crate) value_constructors: HashMap<String, Type>,
     pub(crate) functions: HashMap<String, Type>,

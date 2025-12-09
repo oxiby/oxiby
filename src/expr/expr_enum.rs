@@ -95,14 +95,15 @@ impl WriteRuby for ExprEnum<'_> {
 }
 
 impl Infer for ExprEnum<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let name = self.ty.as_str();
 
-        let Some((ty, members)) = checker.type_constructors.get(name) else {
-            return Err(Error::build("Unknown type")
+        let (ty, members) = match checker.type_constructors.get(name) {
+            Some((ty, members)) => (ty.clone(), members.clone()),
+            None => return Err(Error::build("Unknown type")
                 .with_detail(&format!("Type `{name}` is not in scope."), self.span)
                 .with_help("You might need to import this type from another module.")
-                .finish());
+                .finish()),
         };
 
         let variant_name = self.variant.as_str();

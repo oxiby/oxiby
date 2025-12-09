@@ -42,7 +42,7 @@ impl WriteRuby for ExprLoop<'_> {
 }
 
 impl Infer for ExprLoop<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         self.block.infer(checker, context)
     }
 }

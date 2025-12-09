@@ -2,7 +2,7 @@ use chumsky::input::BorrowInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
-use crate::check::{self, Context, Infer};
+use crate::check::{self, Checker, Context, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::Expr;
@@ -40,7 +40,7 @@ impl WriteRuby for ExprParenthesized<'_> {
 }
 
 impl Infer for ExprParenthesized<'_> {
-    fn infer(&self, checker: &check::Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         self.expr.infer(checker, context)
     }
 }

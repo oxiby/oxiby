@@ -43,7 +43,7 @@ impl WriteRuby for ExprReturn<'_> {
 }
 
 impl Infer for ExprReturn<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let ty = match &self.expr {
             Some(expr) => (*expr).infer(checker, context)?,
             None => check::Type::unit(),

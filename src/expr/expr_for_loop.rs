@@ -65,7 +65,7 @@ impl WriteRuby for ExprForLoop<'_> {
 }
 
 impl Infer for ExprForLoop<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let element_type = match self.items.infer(checker, context)? {
             ref items_type @ check::Type::Generic(ref constructor_type, ref generic_types) => {
                 let name = constructor_type.name();

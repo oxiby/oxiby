@@ -70,7 +70,7 @@ impl WriteRuby for ExprTuple<'_> {
 }
 
 impl Infer for ExprTuple<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         if self.exprs.is_empty() {
             return Ok(check::Type::unit());
         }

@@ -28,7 +28,7 @@ impl WriteRuby for ExprMap<'_> {
 }
 
 impl Infer for ExprMap<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let (inferred_key, key_span, inferred_value, value_span) = match self.pairs.first() {
             Some((key, value)) => (
                 key.infer(checker, context)?,

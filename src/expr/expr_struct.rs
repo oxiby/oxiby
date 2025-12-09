@@ -80,14 +80,15 @@ impl WriteRuby for ExprStruct<'_> {
 }
 
 impl Infer for ExprStruct<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let name = self.ty.to_string();
 
-        let Some((ty, members)) = checker.type_constructors.get(&name) else {
-            return Err(Error::build("Unknown type")
+        let (ty, members) = match checker.type_constructors.get(&name) {
+            Some((ty, members)) => (ty.clone(), members.clone()),
+            None => return Err(Error::build("Unknown type")
                 .with_detail(&format!("Type `{name}` is not in scope."), self.span)
                 .with_help("You might need to import this type from another module.")
-                .finish());
+                .finish()),
         };
 
         let check::Type::RecordStruct(ty, fields) = ty else {
@@ -126,7 +127,7 @@ impl Infer for ExprStruct<'_> {
 }
 
 pub fn check_records<'a>(
-    checker: &Checker,
+    checker: &mut Checker,
     context: &mut Context,
     name: &str,
     field_types: impl Iterator<Item = &'a (String, check::Type)>,

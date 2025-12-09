@@ -72,7 +72,7 @@ impl WriteRuby for ExprConditional<'_> {
 }
 
 impl Infer for ExprConditional<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let condition_type = self.condition.infer(checker, context)?;
 
         if condition_type != check::Type::boolean() {

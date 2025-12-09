@@ -66,7 +66,7 @@ impl WriteRuby for UnscopedExprBlock<'_> {
 }
 
 impl Infer for ExprBlock<'_> {
-    fn infer(&self, checker: &Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let mut inferred = check::Type::unit();
 
         for expr in &self.exprs {
