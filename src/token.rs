@@ -2,8 +2,6 @@ use std::fmt::Display;
 
 use chumsky::prelude::*;
 
-use super::Spanned;
-
 const RUBY_KEYWORDS: &[&str] = &[
     "BEGIN",
     "END",
@@ -39,7 +37,7 @@ const RUBY_KEYWORDS: &[&str] = &[
 ];
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Token<'src> {
+pub enum Token {
     // Keywords
     Arrow,
     Break,
@@ -57,7 +55,7 @@ pub enum Token<'src> {
     Match,
     Pub,
     Return,
-    Ruby(&'src str),
+    Ruby(String),
     SelfTerm,
     SelfType,
     Struct,
@@ -71,15 +69,15 @@ pub enum Token<'src> {
     Boolean(bool),
     Float(f64),
     Integer(u64),
-    String(Vec<Spanned<Token<'src>>>),
+    String(Vec<Spanned<Token>>),
 
     // Workaround for https://github.com/zesterer/chumsky/discussions/891
-    StringPartLiteral(&'src str),
-    StringPartExpr(Vec<Spanned<Token<'src>>>),
+    StringPartLiteral(String),
+    StringPartExpr(Vec<Spanned<Token>>),
 
     // Identifiers
-    TermIdent(&'src str),
-    TypeIdent(&'src str),
+    TermIdent(String),
+    TypeIdent(String),
 
     // Operators
     Add,
@@ -116,7 +114,7 @@ pub enum Token<'src> {
     Underscore,
 }
 
-impl Display for Token<'_> {
+impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             // Keywords
@@ -155,7 +153,7 @@ impl Display for Token<'_> {
                 "{}",
                 spanned_tokens
                     .iter()
-                    .map(|spanned_token| spanned_token.0.to_string())
+                    .map(|spanned_token| spanned_token.inner.to_string())
                     .collect::<String>()
             ),
 
@@ -166,7 +164,7 @@ impl Display for Token<'_> {
                 "{}",
                 spanned_tokens
                     .iter()
-                    .map(|spanned_token| spanned_token.0.to_string())
+                    .map(|spanned_token| spanned_token.inner.to_string())
                     .collect::<String>()
             ),
 
@@ -211,8 +209,7 @@ impl Display for Token<'_> {
 }
 
 pub fn lexer<'src>()
--> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, extra::Err<Rich<'src, char, SimpleSpan>>>
-{
+-> impl Parser<'src, &'src str, Vec<Spanned<Token>>, extra::Err<Rich<'src, char, SimpleSpan>>> {
     let mut token = Recursive::declare();
     let mut string = Recursive::declare();
 
@@ -248,17 +245,12 @@ pub fn lexer<'src>()
             .repeated()
             .at_least(1)
             .to_slice()
-            .map(Token::StringPartLiteral),
+            .map(|s: &'src str| Token::StringPartLiteral(s.to_string())),
     ));
 
     string.define(
         just('"')
-            .ignore_then(
-                string_part
-                    .map_with(|s, extra| (s, extra.span()))
-                    .repeated()
-                    .collect(),
-            )
+            .ignore_then(string_part.spanned().repeated().collect())
             .then_ignore(just('"'))
             .map(Token::String),
     );
@@ -304,7 +296,14 @@ pub fn lexer<'src>()
         .ignored()
         .padded()
         .then_ignore(just('{'))
-        .then(any().and_is(just('}').not()).padded().repeated().to_slice())
+        .then(
+            any()
+                .and_is(just('}').not())
+                .padded()
+                .repeated()
+                .to_slice()
+                .map(ToString::to_string),
+        )
         .then_ignore(just('}'))
         .map(|((), code)| Token::Ruby(code));
 
@@ -354,21 +353,21 @@ pub fn lexer<'src>()
                 if let Some(first_character) = ident.chars().next()
                     && first_character.is_ascii_uppercase()
                 {
-                    Token::TypeIdent(ident)
+                    Token::TypeIdent(ident.to_string())
                 } else {
-                    Token::TermIdent(ident)
+                    Token::TermIdent(ident.to_string())
                 }
             }
         });
 
     token.define(choice((
-        ruby.map_with(|token, extra| (token, extra.span())),
-        float.map_with(|token, extra| (token, extra.span())),
-        integer.map_with(|token, extra| (token, extra.span())),
-        string.map_with(|token, extra| (token, extra.span())),
-        str_symbol.map_with(|token, extra| (token, extra.span())),
-        char_symbol.map_with(|token, extra| (token, extra.span())),
-        ident.map_with(|token, extra| (token, extra.span())),
+        ruby.spanned(),
+        float.spanned(),
+        integer.spanned(),
+        string.spanned(),
+        str_symbol.spanned(),
+        char_symbol.spanned(),
+        ident.spanned(),
     )));
 
     let comment = just("//")
@@ -395,7 +394,7 @@ mod tests {
                 .parse("!=")
                 .unwrap()
                 .into_iter()
-                .map(|spanned| spanned.0.to_string())
+                .map(|spanned| spanned.inner.to_string())
                 .collect::<Vec<_>>(),
             vec!["!="]
         );

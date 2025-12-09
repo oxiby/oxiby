@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
@@ -9,56 +9,58 @@ use crate::token::Token;
 use crate::types::TypeIdent;
 
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
-pub struct ExprIdent<'a> {
-    pub(crate) ident: &'a str,
+pub struct ExprIdent {
+    pub(crate) ident: String,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprIdent<'a> {
-    pub fn parser<I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl ExprIdent {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         select! {
             Token::TermIdent(ident) = extra => Self { ident, span: extra.span() },
-            Token::SelfTerm = extra => Self { ident: "self", span: extra.span() },
+            Token::SelfTerm = extra => Self { ident: "self".to_string(), span: extra.span() },
         }
         .labelled("identifier")
     }
 
-    pub fn as_str(&self) -> &'a str {
-        self.ident
+    pub fn as_str(&self) -> &str {
+        &self.ident
     }
 }
 
-impl Display for ExprIdent<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ExprIdent {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.ident)
     }
 }
 
-impl WriteRuby for ExprIdent<'_> {
+impl WriteRuby for ExprIdent {
     fn write_ruby(&self, scope: &mut Scope) {
-        match scope.resolve_ident(self.ident) {
+        match scope.resolve_ident(&self.ident) {
             Some((path, _kind)) => scope.fragment(path),
-            None => scope.fragment(self.ident),
+            None => scope.fragment(&self.ident),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprTypeIdent<'a> {
-    ident: TypeIdent<'a>,
+pub struct ExprTypeIdent {
+    ident: TypeIdent,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprTypeIdent<'a> {
-    pub fn parser<I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl ExprTypeIdent {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         TypeIdent::parser().map_with(|ident, extra| Self {
             ident,
             span: extra.span(),
@@ -70,7 +72,7 @@ impl<'a> ExprTypeIdent<'a> {
     }
 }
 
-impl WriteRuby for ExprTypeIdent<'_> {
+impl WriteRuby for ExprTypeIdent {
     fn write_ruby(&self, scope: &mut Scope) {
         self.ident.write_ruby(scope);
     }

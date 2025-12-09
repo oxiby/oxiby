@@ -7,20 +7,20 @@ use crate::error::Error;
 use crate::expr::Expr;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprUnary<'a> {
+pub struct ExprUnary {
     pub(crate) op: Operator,
-    pub(crate) expr: Box<Expr<'a>>,
+    pub(crate) expr: Box<Expr>,
     pub(crate) span: SimpleSpan,
 }
 
-impl WriteRuby for ExprUnary<'_> {
+impl WriteRuby for ExprUnary {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.fragment(self.op.to_string());
         self.expr.write_ruby(scope);
     }
 }
 
-impl Infer for ExprUnary<'_> {
+impl Infer for ExprUnary {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let ty = (*self.expr).infer(checker, context)?;
 

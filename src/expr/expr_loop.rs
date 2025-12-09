@@ -1,4 +1,4 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
@@ -9,18 +9,25 @@ use crate::expr::{Expr, ExprBlock};
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprLoop<'a> {
-    block: ExprBlock<'a>,
+pub struct ExprLoop {
+    block: ExprBlock,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprLoop<'a> {
-    pub fn parser<I>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl ExprLoop {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         just(Token::Loop)
             .ignore_then(ExprBlock::parser(expr))
             .map_with(|block, extra| Self {
@@ -32,7 +39,7 @@ impl<'a> ExprLoop<'a> {
     }
 }
 
-impl WriteRuby for ExprLoop<'_> {
+impl WriteRuby for ExprLoop {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.fragment_block_with_end("loop do", |scope| {
             scope.newline();
@@ -41,7 +48,7 @@ impl WriteRuby for ExprLoop<'_> {
     }
 }
 
-impl Infer for ExprLoop<'_> {
+impl Infer for ExprLoop {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         self.block.infer(checker, context)
     }

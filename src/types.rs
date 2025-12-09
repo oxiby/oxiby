@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 
 use crate::compiler::{Scope, WriteRuby};
@@ -9,18 +9,19 @@ use crate::item::ImportKind;
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Constraint<'a> {
-    pub tyvar: TyVar<'a>,
-    pub requirements: Option<Vec<Type<'a>>>,
-    pub default: Option<Type<'a>>,
+pub struct Constraint {
+    pub tyvar: TyVar,
+    pub requirements: Option<Vec<Type>>,
+    pub default: Option<Type>,
 }
 
-impl<'a> Constraint<'a> {
-    pub fn parser<I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl Constraint {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         choice((
             just(Token::SelfType).to(TyVar::SelfType),
             ExprIdent::parser().map(TyVar::ExprIdent),
@@ -40,11 +41,13 @@ impl<'a> Constraint<'a> {
         .as_context()
     }
 
-    pub fn list_parser<I>()
-    -> impl Parser<'a, I, Vec<Self>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+    #[allow(clippy::type_complexity)]
+    pub fn list_parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Vec<Self>,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         Self::parser()
             .separated_by(just(Token::Comma))
             .at_least(1)
@@ -53,34 +56,37 @@ impl<'a> Constraint<'a> {
             .as_context()
     }
 
-    pub fn where_parser<I>()
-    -> impl Parser<'a, I, Vec<Self>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+    #[allow(clippy::type_complexity)]
+    pub fn where_parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Vec<Self>,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         just(Token::Where).ignore_then(Self::list_parser())
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum TyVar<'a> {
+pub enum TyVar {
     SelfType,
-    ExprIdent(ExprIdent<'a>),
+    ExprIdent(ExprIdent),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct AssociatedType<'a> {
-    pub name: ExprIdent<'a>,
-    pub requirements: Option<Vec<Type<'a>>>,
-    pub default: Option<Type<'a>>,
+pub struct AssociatedType {
+    pub name: ExprIdent,
+    pub requirements: Option<Vec<Type>>,
+    pub default: Option<Type>,
 }
 
-impl<'a> AssociatedType<'a> {
-    pub fn parser<I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl AssociatedType {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         ExprIdent::parser()
             .then(
                 just(Token::Is)
@@ -100,20 +106,21 @@ impl<'a> AssociatedType<'a> {
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct TypeIdent<'a> {
-    ident: &'a str,
+pub struct TypeIdent {
+    ident: String,
     span: SimpleSpan,
 }
 
-impl<'a> TypeIdent<'a> {
-    pub fn parser<I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl TypeIdent {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         select! {
             Token::TypeIdent(ident) => ident,
-            Token::SelfType => "Self",
+            Token::SelfType => "Self".to_string(),
         }
         .map_with(|ident, extra| Self {
             ident,
@@ -122,18 +129,18 @@ impl<'a> TypeIdent<'a> {
         .labelled("type identifier")
     }
 
-    pub fn as_str(&self) -> &'a str {
-        self.ident
+    pub fn as_str(&self) -> &str {
+        &self.ident
     }
 }
 
-impl Display for TypeIdent<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for TypeIdent {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.ident)
     }
 }
 
-impl WriteRuby for TypeIdent<'_> {
+impl WriteRuby for TypeIdent {
     fn write_ruby(&self, scope: &mut Scope) {
         let string = self.to_string();
         match scope.resolve_ident(&string) {
@@ -147,19 +154,20 @@ impl WriteRuby for TypeIdent<'_> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Type<'a> {
-    Concrete(ConcreteType<'a>),
-    Variable(ExprIdent<'a>),
-    Tuple(Vec<Type<'a>>),
-    Fn(Option<Vec<Type<'a>>>, Option<Box<Type<'a>>>),
+pub enum Type {
+    Concrete(ConcreteType),
+    Variable(ExprIdent),
+    Tuple(Vec<Type>),
+    Fn(Option<Vec<Type>>, Option<Box<Type>>),
 }
 
-impl<'a> Type<'a> {
-    pub fn parser<I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl Type {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         let mut type_parser = Recursive::declare();
         let mut concrete_type_parser = Recursive::declare();
 
@@ -259,8 +267,8 @@ impl<'a> Type<'a> {
     }
 }
 
-impl Display for Type<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         if let Self::Concrete(concrete_type) = &self {
             return write!(f, "{}", concrete_type.ident);
         }
@@ -269,7 +277,7 @@ impl Display for Type<'_> {
     }
 }
 
-impl WriteRuby for Type<'_> {
+impl WriteRuby for Type {
     fn write_ruby(&self, scope: &mut Scope) {
         if let Self::Concrete(concrete_type) = &self {
             return concrete_type.write_ruby(scope);
@@ -280,20 +288,20 @@ impl WriteRuby for Type<'_> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct ConcreteType<'a> {
-    pub(crate) qual: Option<TypeIdent<'a>>,
-    pub(crate) ident: TypeIdent<'a>,
-    pub(crate) params: Option<Vec<Type<'a>>>,
+pub struct ConcreteType {
+    pub(crate) qual: Option<TypeIdent>,
+    pub(crate) ident: TypeIdent,
+    pub(crate) params: Option<Vec<Type>>,
     span: SimpleSpan,
 }
 
-impl Display for ConcreteType<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ConcreteType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.ident)
     }
 }
 
-impl WriteRuby for ConcreteType<'_> {
+impl WriteRuby for ConcreteType {
     fn write_ruby(&self, scope: &mut Scope) {
         self.ident.write_ruby(scope);
     }

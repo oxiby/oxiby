@@ -1,4 +1,4 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
@@ -6,12 +6,19 @@ use crate::ast::Operator;
 use crate::expr::{Expr, ExprBinary, ExprList, ExprMap};
 use crate::token::Token;
 
-pub fn expr_array_parser<'a, I>(
-    expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone,
-) -> impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-where
-    I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-{
+pub fn expr_array_parser<'a>(
+    expr: impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Expr,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone,
+) -> impl Parser<
+    'a,
+    MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+    Expr,
+    extra::Err<Rich<'a, Token, SimpleSpan>>,
+> + Clone {
     expr.clone()
         .separated_by(just(Token::Comma))
         .allow_trailing()

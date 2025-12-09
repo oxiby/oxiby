@@ -1,7 +1,6 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 
-use crate::Spanned;
 use crate::ast::{Record, Visibility};
 use crate::compiler::{Scope, WriteRuby};
 use crate::expr::ExprIdent;
@@ -10,22 +9,21 @@ use crate::token::Token;
 use crate::types::{Constraint, Type, TypeIdent};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ItemEnum<'a> {
+pub struct ItemEnum {
     pub(crate) visibility: Visibility,
-    pub(crate) ty: Type<'a>,
-    pub(crate) constraints: Option<Vec<Constraint<'a>>>,
-    pub(crate) variants: Vec<Variant<'a>>,
-    pub(crate) fns: Vec<ItemFn<'a>>,
+    pub(crate) ty: Type,
+    pub(crate) constraints: Option<Vec<Constraint>>,
+    pub(crate) variants: Vec<Variant>,
+    pub(crate) fns: Vec<ItemFn>,
 }
 
-impl<'a> ItemEnum<'a> {
-    pub fn parser<I, M>(
-        make_input: M,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
-    {
+impl ItemEnum {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         Visibility::parser()
             .then_ignore(just(Token::Enum))
             .then(Type::parser())
@@ -35,11 +33,7 @@ impl<'a> ItemEnum<'a> {
                     .separated_by(just(Token::Comma))
                     .allow_trailing()
                     .collect::<Vec<_>>()
-                    .then(
-                        ItemFn::parser(make_input, true)
-                            .repeated()
-                            .collect::<Vec<_>>(),
-                    )
+                    .then(ItemFn::parser(true).repeated().collect::<Vec<_>>())
                     .delimited_by(just(Token::LBrace), just(Token::RBrace)),
             )
             .map(|(((visibility, ty), constraints), (mut variants, fns))| {
@@ -64,7 +58,7 @@ impl<'a> ItemEnum<'a> {
     }
 }
 
-impl WriteRuby for ItemEnum<'_> {
+impl WriteRuby for ItemEnum {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.block_with_end(format!("class {}", self.ty), |scope| {
             for (index, variant) in self.variants.iter().enumerate() {
@@ -86,18 +80,19 @@ impl WriteRuby for ItemEnum<'_> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Variant<'a> {
-    Unit(TypeIdent<'a>, Vec<ItemFn<'a>>),
-    Tuple(TypeIdent<'a>, Vec<Type<'a>>, Vec<ItemFn<'a>>),
-    Record(TypeIdent<'a>, Vec<Record<'a>>, Vec<ItemFn<'a>>),
+pub enum Variant {
+    Unit(TypeIdent, Vec<ItemFn>),
+    Tuple(TypeIdent, Vec<Type>, Vec<ItemFn>),
+    Record(TypeIdent, Vec<Record>, Vec<ItemFn>),
 }
 
-impl<'a> Variant<'a> {
-    pub fn parser<I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl Variant {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         choice((
             TypeIdent::parser()
                 .then(
@@ -125,7 +120,7 @@ impl<'a> Variant<'a> {
         ))
     }
 
-    pub fn add_fn(&mut self, function: ItemFn<'a>) {
+    pub fn add_fn(&mut self, function: ItemFn) {
         match self {
             Self::Unit(_, fns) | Self::Tuple(_, _, fns) | Self::Record(_, _, fns) => {
                 fns.push(function);
@@ -134,7 +129,7 @@ impl<'a> Variant<'a> {
     }
 }
 
-impl WriteRuby for Variant<'_> {
+impl WriteRuby for Variant {
     fn write_ruby(&self, scope: &mut Scope) {
         match self {
             Self::Unit(ty, fns) => {

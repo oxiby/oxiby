@@ -1,4 +1,4 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
@@ -9,19 +9,26 @@ use crate::expr::{Expr, ExprBlock};
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprWhileLoop<'a> {
-    condition: Box<Expr<'a>>,
-    block: ExprBlock<'a>,
+pub struct ExprWhileLoop {
+    condition: Box<Expr>,
+    block: ExprBlock,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprWhileLoop<'a> {
-    pub fn parser<I>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl ExprWhileLoop {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         just(Token::While)
             .ignore_then(expr.clone())
             .then(ExprBlock::parser(expr))
@@ -35,7 +42,7 @@ impl<'a> ExprWhileLoop<'a> {
     }
 }
 
-impl WriteRuby for ExprWhileLoop<'_> {
+impl WriteRuby for ExprWhileLoop {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.fragment("while ");
         self.condition.write_ruby(scope);
@@ -46,7 +53,7 @@ impl WriteRuby for ExprWhileLoop<'_> {
     }
 }
 
-impl Infer for ExprWhileLoop<'_> {
+impl Infer for ExprWhileLoop {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let condition_type = self.condition.infer(checker, context)?;
 

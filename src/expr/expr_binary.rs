@@ -7,14 +7,14 @@ use crate::error::Error;
 use crate::expr::Expr;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprBinary<'a> {
+pub struct ExprBinary {
     pub(crate) op: Operator,
-    pub(crate) lhs: Box<Expr<'a>>,
-    pub(crate) rhs: Box<Expr<'a>>,
+    pub(crate) lhs: Box<Expr>,
+    pub(crate) rhs: Box<Expr>,
     pub(crate) span: SimpleSpan,
 }
 
-impl WriteRuby for ExprBinary<'_> {
+impl WriteRuby for ExprBinary {
     fn write_ruby(&self, scope: &mut Scope) {
         self.lhs.write_ruby(scope);
         scope.fragment(format!(" {} ", self.op));
@@ -22,7 +22,7 @@ impl WriteRuby for ExprBinary<'_> {
     }
 }
 
-impl Infer for ExprBinary<'_> {
+impl Infer for ExprBinary {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let lhs_type = self.lhs.infer(checker, context)?;
         let rhs_type = self.rhs.infer(checker, context)?;

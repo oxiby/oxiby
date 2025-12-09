@@ -1,4 +1,4 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
@@ -12,11 +12,12 @@ pub struct ExprBoolean {
 }
 
 impl ExprBoolean {
-    pub fn parser<'a, I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         select! {
             Token::Boolean(b) = extra => ExprBoolean { value: b, span: extra.span() },
         }

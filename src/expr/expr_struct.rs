@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
@@ -12,19 +12,26 @@ use crate::token::Token;
 use crate::types::Type;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprStruct<'a> {
-    ty: Type<'a>,
-    fields: Vec<(ExprIdent<'a>, Expr<'a>)>,
+pub struct ExprStruct {
+    ty: Type,
+    fields: Vec<(ExprIdent, Expr)>,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprStruct<'a> {
-    pub fn parser<I>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl ExprStruct {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         Type::parser()
             .then(
                 ExprIdent::parser()
@@ -45,7 +52,7 @@ impl<'a> ExprStruct<'a> {
     }
 }
 
-impl WriteRuby for ExprStruct<'_> {
+impl WriteRuby for ExprStruct {
     fn write_ruby(&self, scope: &mut Scope) {
         let string = self.ty.to_string();
 
@@ -79,7 +86,7 @@ impl WriteRuby for ExprStruct<'_> {
     }
 }
 
-impl Infer for ExprStruct<'_> {
+impl Infer for ExprStruct {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let name = self.ty.to_string();
 
@@ -133,7 +140,7 @@ pub fn check_records<'a>(
     context: &mut Context,
     name: &str,
     field_types: impl Iterator<Item = &'a (String, check::Type)>,
-    field_values: impl Iterator<Item = &'a (ExprIdent<'a>, Expr<'a>)>,
+    field_values: impl Iterator<Item = &'a (ExprIdent, Expr)>,
     span: SimpleSpan,
     is_variant: bool,
 ) -> Result<(), Error> {

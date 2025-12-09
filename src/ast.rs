@@ -1,18 +1,17 @@
 use std::fmt::Display;
 
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 
-use crate::Spanned;
 use crate::expr::ExprIdent;
 use crate::item::{Item, ItemEnum, ItemFn, ItemImpl, ItemStruct, ItemTrait, ItemUse};
 use crate::token::Token;
 use crate::types::Type;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Record<'a> {
-    pub name: ExprIdent<'a>,
-    pub ty: Type<'a>,
+pub struct Record {
+    pub name: ExprIdent,
+    pub ty: Type,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -22,11 +21,12 @@ pub enum Visibility {
 }
 
 impl Visibility {
-    pub fn parser<'a, I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         just(Token::Pub)
             .or_not()
             .map(|maybe_pub| match maybe_pub {
@@ -38,17 +38,18 @@ impl Visibility {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct TupleField<'a> {
+pub struct TupleField {
     pub visibility: Visibility,
-    pub ty: Type<'a>,
+    pub ty: Type,
 }
 
-impl<'a> TupleField<'a> {
-    pub fn parser<I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl TupleField {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         Visibility::parser()
             .then(Type::parser())
             .map(|(visibility, ty)| Self { visibility, ty })
@@ -57,18 +58,19 @@ impl<'a> TupleField<'a> {
     }
 }
 #[derive(Clone, Debug, PartialEq)]
-pub struct RecordField<'a> {
+pub struct RecordField {
     pub visibility: Visibility,
-    pub name: ExprIdent<'a>,
-    pub ty: Type<'a>,
+    pub name: ExprIdent,
+    pub ty: Type,
 }
 
-impl<'a> RecordField<'a> {
-    pub fn parser<I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl RecordField {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         Visibility::parser()
             .then(ExprIdent::parser())
             .then_ignore(just(Token::Colon))
@@ -107,7 +109,7 @@ pub enum Operator {
 }
 
 impl Display for Operator {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let variant = match self {
             Self::Assign => "=",
             Self::AddAssign => "+=",
@@ -135,23 +137,18 @@ impl Display for Operator {
 }
 
 #[must_use]
-pub fn parser<'a, I, M>(
-    make_input: M,
-) -> impl Parser<'a, I, Vec<Item<'a>>, extra::Err<Rich<'a, Token<'a>>>>
-where
-    I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
-{
+pub fn parser<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    MappedInput<'tokens, Token, SimpleSpan, &'tokens [Spanned<Token>]>,
+    Vec<Item>,
+    extra::Err<Rich<'tokens, Token>>,
+> {
     choice((
-        ItemEnum::parser(make_input.clone()).map(Item::Enum).boxed(),
-        ItemFn::parser(make_input.clone(), false)
-            .map(Item::Fn)
-            .boxed(),
-        ItemImpl::parser(make_input.clone()).map(Item::Impl).boxed(),
-        ItemStruct::parser(make_input.clone())
-            .map(Item::Struct)
-            .boxed(),
-        ItemTrait::parser(make_input).map(Item::Trait).boxed(),
+        ItemEnum::parser().map(Item::Enum).boxed(),
+        ItemFn::parser(false).map(Item::Fn).boxed(),
+        ItemImpl::parser().map(Item::Impl).boxed(),
+        ItemStruct::parser().map(Item::Struct).boxed(),
+        ItemTrait::parser().map(Item::Trait).boxed(),
         ItemUse::parser().map(Item::Use).boxed(),
     ))
     .labelled("item")
@@ -159,12 +156,4 @@ where
     .repeated()
     .collect::<Vec<Item>>()
     .boxed()
-}
-
-#[must_use]
-pub fn make_input<'a>(
-    eoi: SimpleSpan,
-    tokens: &'a [Spanned<Token<'a>>],
-) -> impl BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan> {
-    tokens.map(eoi, |(token, span)| (token, span))
 }

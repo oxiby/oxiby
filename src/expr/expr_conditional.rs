@@ -1,4 +1,4 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
@@ -10,20 +10,28 @@ use crate::expr::Expr;
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprConditional<'a> {
-    pub(crate) condition: Box<Expr<'a>>,
-    pub(crate) then_branch: ExprBlock<'a>,
-    pub(crate) else_branch: Option<ConditionalElseBranch<'a>>,
+pub struct ExprConditional {
+    pub(crate) condition: Box<Expr>,
+    pub(crate) then_branch: ExprBlock,
+    pub(crate) else_branch: Option<ConditionalElseBranch>,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprConditional<'a> {
-    pub fn parser<I>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone + 'a,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl ExprConditional {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone
+        + 'a,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         recursive(|cond| {
             just(Token::If)
                 .ignore_then(expr.clone())
@@ -48,7 +56,7 @@ impl<'a> ExprConditional<'a> {
     }
 }
 
-impl WriteRuby for ExprConditional<'_> {
+impl WriteRuby for ExprConditional {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.condition(
             |scope| self.condition.write_ruby(scope),
@@ -71,7 +79,7 @@ impl WriteRuby for ExprConditional<'_> {
     }
 }
 
-impl Infer for ExprConditional<'_> {
+impl Infer for ExprConditional {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let condition_type = self.condition.infer(checker, context)?;
 
@@ -121,7 +129,7 @@ impl Infer for ExprConditional<'_> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ConditionalElseBranch<'a> {
-    Block(ExprBlock<'a>),
-    Conditional(Box<ExprConditional<'a>>),
+pub enum ConditionalElseBranch {
+    Block(ExprBlock),
+    Conditional(Box<ExprConditional>),
 }

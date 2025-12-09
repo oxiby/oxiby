@@ -1,4 +1,4 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 use itertools::{EitherOrBoth, Itertools};
@@ -11,28 +11,36 @@ use crate::token::Token;
 use crate::types::TypeIdent;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprCall<'a> {
-    pub(crate) name: CallIdent<'a>,
+pub struct ExprCall {
+    pub(crate) name: CallIdent,
     pub(crate) self_arg: bool,
-    pub(crate) positional_args: Vec<Expr<'a>>,
-    pub(crate) keyword_args: Vec<(ExprIdent<'a>, Expr<'a>)>,
+    pub(crate) positional_args: Vec<Expr>,
+    pub(crate) keyword_args: Vec<(ExprIdent, Expr)>,
     pub(crate) is_field: bool,
     pub(crate) span: SimpleSpan,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum FnArg<'a> {
-    Pos(Expr<'a>),
-    Kw(ExprIdent<'a>, Expr<'a>),
+enum FnArg {
+    Pos(Expr),
+    Kw(ExprIdent, Expr),
 }
 
-impl<'a> ExprCall<'a> {
-    pub fn parser<I>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone + 'a,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl ExprCall {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone
+        + 'a,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         let positional_arg = expr.clone().map(FnArg::Pos);
 
         let keyword_arg = ExprIdent::parser()
@@ -148,7 +156,7 @@ pub fn infer_function<'a>(
     checker: &mut Checker,
     context: &mut Context,
     function: &check::Function,
-    call_args: impl Iterator<Item = &'a Expr<'a>>,
+    call_args: impl Iterator<Item = &'a Expr>,
     span: SimpleSpan,
     noun: Noun,
 ) -> Result<check::Type, Error> {
@@ -211,7 +219,7 @@ pub fn infer_function<'a>(
     Ok(*function.return_type.clone())
 }
 
-impl WriteRuby for ExprCall<'_> {
+impl WriteRuby for ExprCall {
     fn write_ruby(&self, scope: &mut Scope) {
         // If this call is a field, render its name without going through import resolution so it
         // doesn't get confused with a free function of the same name.
@@ -253,7 +261,7 @@ impl WriteRuby for ExprCall<'_> {
     }
 }
 
-impl Infer for ExprCall<'_> {
+impl Infer for ExprCall {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let name = self.name.as_str();
 
@@ -327,12 +335,12 @@ impl Infer for ExprCall<'_> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum CallIdent<'a> {
-    Expr(ExprIdent<'a>),
-    Type(TypeIdent<'a>),
+pub enum CallIdent {
+    Expr(ExprIdent),
+    Type(TypeIdent),
 }
 
-impl CallIdent<'_> {
+impl CallIdent {
     pub fn as_str(&self) -> &str {
         match self {
             Self::Expr(ident) => ident.as_str(),
@@ -341,7 +349,7 @@ impl CallIdent<'_> {
     }
 }
 
-impl WriteRuby for CallIdent<'_> {
+impl WriteRuby for CallIdent {
     fn write_ruby(&self, scope: &mut Scope) {
         match self {
             Self::Expr(ident) => ident.write_ruby(scope),

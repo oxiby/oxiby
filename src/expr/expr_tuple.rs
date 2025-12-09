@@ -1,4 +1,4 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
@@ -9,18 +9,26 @@ use crate::expr::Expr;
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprTuple<'a> {
-    exprs: Vec<Expr<'a>>,
+pub struct ExprTuple {
+    exprs: Vec<Expr>,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprTuple<'a> {
-    pub fn parser<I>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone + 'a,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl ExprTuple {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone
+        + 'a,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         choice((
             // ()
             just(Token::LParen)
@@ -55,7 +63,7 @@ impl<'a> ExprTuple<'a> {
     }
 }
 
-impl WriteRuby for ExprTuple<'_> {
+impl WriteRuby for ExprTuple {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.fragment("::Std::Tuple::Tuple.new(fields: [");
         for (index, expr) in self.exprs.iter().enumerate() {
@@ -69,7 +77,7 @@ impl WriteRuby for ExprTuple<'_> {
     }
 }
 
-impl Infer for ExprTuple<'_> {
+impl Infer for ExprTuple {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         if self.exprs.is_empty() {
             return Ok(check::Type::unit());

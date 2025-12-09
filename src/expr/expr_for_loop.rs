@@ -1,9 +1,8 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
 use super::ExprBlock;
-use crate::Spanned;
 use crate::check::{self, Checker, Context, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
@@ -12,24 +11,30 @@ use crate::pattern::Pattern;
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprForLoop<'a> {
-    pattern: Pattern<'a>,
-    items: Box<Expr<'a>>,
-    block: ExprBlock<'a>,
+pub struct ExprForLoop {
+    pattern: Pattern,
+    items: Box<Expr>,
+    block: ExprBlock,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprForLoop<'a> {
-    pub fn parser<I, M>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone + 'a,
-        make_input: M,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
-    {
+impl ExprForLoop {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone
+        + 'a,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         just(Token::For)
-            .ignore_then(Pattern::parser(expr.clone(), make_input, false))
+            .ignore_then(Pattern::parser(expr.clone(), false))
             .then_ignore(just(Token::In))
             .then(expr.clone())
             .then(ExprBlock::parser(expr))
@@ -44,7 +49,7 @@ impl<'a> ExprForLoop<'a> {
     }
 }
 
-impl WriteRuby for ExprForLoop<'_> {
+impl WriteRuby for ExprForLoop {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.fragment("(");
         self.items.write_ruby(scope);
@@ -64,7 +69,7 @@ impl WriteRuby for ExprForLoop<'_> {
     }
 }
 
-impl Infer for ExprForLoop<'_> {
+impl Infer for ExprForLoop {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let element_type = match self.items.infer(checker, context)? {
             ref items_type @ check::Type::Generic(ref constructor_type, ref generic_types) => {

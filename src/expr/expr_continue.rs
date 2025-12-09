@@ -1,4 +1,4 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
@@ -11,15 +11,20 @@ pub struct ExprContinue {
 }
 
 impl ExprContinue {
-    pub fn parser<'a, I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
-        just::<_, I, chumsky::extra::Err<Rich<_>>>(Token::Continue)
-            .ignored()
-            .map_with(|(), extra| Self { span: extra.span() })
-            .labelled("continue")
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
+        just::<
+            _,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            chumsky::extra::Err<Rich<_>>,
+        >(Token::Continue)
+        .ignored()
+        .map_with(|(), extra| Self { span: extra.span() })
+        .labelled("continue")
     }
 }
 

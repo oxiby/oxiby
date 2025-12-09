@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 
 use crate::compiler::{Scope, WriteRuby};
@@ -10,20 +10,21 @@ use crate::token::Token;
 use crate::types::TypeIdent;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ItemUse<'a> {
-    path: Vec<ExprIdent<'a>>,
-    is_self: bool,
-    is_std: bool,
-    idents: Vec<ImportedIdent<'a>>,
+pub struct ItemUse {
+    pub(crate) path: Vec<ExprIdent>,
+    pub(crate) is_self: bool,
+    pub(crate) is_std: bool,
+    pub(crate) idents: Vec<ImportedIdent>,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ItemUse<'a> {
-    pub fn parser<I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl ItemUse {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         just(Token::Use).ignore_then(
             ExprIdent::parser()
                 .separated_by(just(Token::Dot))
@@ -148,7 +149,7 @@ impl<'a> ItemUse<'a> {
     }
 }
 
-impl WriteRuby for ItemUse<'_> {
+impl WriteRuby for ItemUse {
     fn write_ruby(&self, scope: &mut Scope) {
         if self.is_self || self.is_std {
             return;
@@ -166,15 +167,15 @@ impl WriteRuby for ItemUse<'_> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ImportedIdent<'a> {
+pub enum ImportedIdent {
     ExprIdent {
-        ident: ExprIdent<'a>,
-        rename: Option<ExprIdent<'a>>,
+        ident: ExprIdent,
+        rename: Option<ExprIdent>,
     },
     TypeIdent {
-        ident: TypeIdent<'a>,
-        variant: Option<TypeIdent<'a>>,
-        rename: Option<TypeIdent<'a>>,
+        ident: TypeIdent,
+        variant: Option<TypeIdent>,
+        rename: Option<TypeIdent>,
     },
 }
 

@@ -76,8 +76,8 @@ impl TryFrom<&Path> for OxibyModulePath {
     }
 }
 
-impl From<Vec<ExprIdent<'_>>> for OxibyModulePath {
-    fn from(value: Vec<ExprIdent<'_>>) -> Self {
+impl From<Vec<ExprIdent>> for OxibyModulePath {
+    fn from(value: Vec<ExprIdent>) -> Self {
         Self(value.iter().map(ToString::to_string).collect())
     }
 }

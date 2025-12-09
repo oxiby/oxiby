@@ -4,11 +4,9 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use chumsky::Parser;
-use chumsky::input::{BorrowInput, Input};
+use chumsky::input::Input;
 use chumsky::span::SimpleSpan;
 
-use crate::Spanned;
-use crate::ast::make_input;
 use crate::import::{OxibyModulePath, RubyModuleConstants};
 use crate::item::{ImportKind, Item};
 use crate::token::Token;
@@ -272,7 +270,7 @@ where
     None,
 }
 
-pub fn compile_items(items: &[Item<'_>], scope: &mut Scope) {
+pub fn compile_items(items: &[Item], scope: &mut Scope) {
     for (index, item) in items.iter().enumerate() {
         item.write_ruby(scope);
 
@@ -308,7 +306,7 @@ where
 #[must_use]
 pub fn compile_module(
     oxiby_module: OxibyModulePath,
-    items: &[Item<'_>],
+    items: &[Item],
     is_std: bool,
     is_entry: bool,
 ) -> String {
@@ -384,8 +382,8 @@ pub fn compile_str(
                 .collect::<Vec<String>>()
         })?;
 
-    let items = crate::ast::parser(make_input)
-        .parse(make_input((0..source.len()).into(), &tokens))
+    let items = crate::ast::parser()
+        .parse(tokens.split_spanned((0..source.len()).into()))
         .into_result()
         .map_err(|errors| {
             errors

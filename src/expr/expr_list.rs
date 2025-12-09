@@ -6,12 +6,12 @@ use crate::error::Error;
 use crate::expr::Expr;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprList<'a> {
-    pub(crate) exprs: Vec<Expr<'a>>,
+pub struct ExprList {
+    pub(crate) exprs: Vec<Expr>,
     pub(crate) span: SimpleSpan,
 }
 
-impl WriteRuby for ExprList<'_> {
+impl WriteRuby for ExprList {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.fragment("[");
         for (index, expr) in self.exprs.iter().enumerate() {
@@ -25,7 +25,7 @@ impl WriteRuby for ExprList<'_> {
     }
 }
 
-impl Infer for ExprList<'_> {
+impl Infer for ExprList {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let (inferred, span) = match self.exprs.first() {
             Some(expr) => (expr.infer(checker, context)?, expr.span()),

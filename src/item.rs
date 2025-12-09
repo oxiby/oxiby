@@ -14,16 +14,16 @@ pub use self::item_use::{ImportKind, ItemUse};
 use crate::compiler::{Scope, WriteRuby};
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Item<'a> {
-    Use(ItemUse<'a>),
-    Fn(ItemFn<'a>),
-    Struct(ItemStruct<'a>),
-    Enum(ItemEnum<'a>),
-    Trait(ItemTrait<'a>),
-    Impl(ItemImpl<'a>),
+pub enum Item {
+    Use(ItemUse),
+    Fn(ItemFn),
+    Struct(ItemStruct),
+    Enum(ItemEnum),
+    Trait(ItemTrait),
+    Impl(ItemImpl),
 }
 
-impl WriteRuby for Item<'_> {
+impl WriteRuby for Item {
     fn write_ruby(&self, scope: &mut Scope) {
         match self {
             Self::Fn(item_fn) => item_fn.write_ruby(scope),

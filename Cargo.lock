@@ -95,9 +95,8 @@ checksum = "2fd1289c04a9ea8cb22300a459a72a385d7c73d3259e2ed7dcb2af674838cfa9"
 
 [[package]]
 name = "chumsky"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cd3ef0a728f561e3b4157213d178ae7523cbc405423f862da757447588ae103"
+version = "0.12.0"
+source = "git+https://github.com/zesterer/chumsky#726bfaaebee738947b63f76f1b00ac9585d8f1cb"
 dependencies = [
  "hashbrown",
  "regex-automata",

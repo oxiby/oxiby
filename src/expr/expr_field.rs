@@ -6,13 +6,13 @@ use crate::error::Error;
 use crate::expr::{Expr, Noun, infer_function};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprField<'a> {
-    pub(crate) lhs: Box<Expr<'a>>,
-    pub(crate) rhs: Box<Expr<'a>>,
+pub struct ExprField {
+    pub(crate) lhs: Box<Expr>,
+    pub(crate) rhs: Box<Expr>,
     pub(crate) span: SimpleSpan,
 }
 
-impl WriteRuby for ExprField<'_> {
+impl WriteRuby for ExprField {
     fn write_ruby(&self, scope: &mut Scope) {
         match *self.lhs {
             Expr::ExprIdent(ref expr_ident) if expr_ident.as_str() == "self" => (),
@@ -41,7 +41,7 @@ impl WriteRuby for ExprField<'_> {
     }
 }
 
-impl Infer for ExprField<'_> {
+impl Infer for ExprField {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let ty: check::Type = if let Expr::TypeIdent(ref expr_type_ident) = *self.lhs {
             let (lhs_ty, members) = match checker.type_constructors.get(expr_type_ident.as_str()) {

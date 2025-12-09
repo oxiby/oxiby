@@ -119,9 +119,9 @@ impl Type {
     pub fn base_name(&self) -> String {
         match self {
             Self::Primitive(primitive_type) => primitive_type.to_string(),
-            Self::Constructor(name) => name.to_string(),
+            Self::Constructor(name) => name.clone(),
             Self::Generic(ty, _) | Self::RecordStruct(ty, _) => ty.to_string(),
-            Self::Variable(variable) => variable.to_string(),
+            Self::Variable(variable) => variable.clone(),
             Self::Tuple(_) => "<tuple name placeholder>".to_string(),
             Self::Fn(_) => "<function name placeholder>".to_string(),
         }
@@ -130,10 +130,10 @@ impl Type {
     pub fn full_name(&self) -> String {
         match self {
             Self::Primitive(primitive_type) => primitive_type.to_string(),
-            Self::Constructor(name) => name.to_string(),
+            Self::Constructor(name) => name.clone(),
             ty @ Self::Generic(..) => ty.to_string(),
             Self::RecordStruct(ty, _) => ty.to_string(),
-            Self::Variable(variable) => variable.to_string(),
+            Self::Variable(variable) => variable.clone(),
             Self::Tuple(_) => "<tuple name placeholder>".to_string(),
             Self::Fn(_) => "<function name placeholder>".to_string(),
         }
@@ -212,7 +212,7 @@ impl Display for Type {
     }
 }
 
-impl From<crate::types::Type<'_>> for Type {
+impl From<crate::types::Type> for Type {
     fn from(value: crate::types::Type) -> Self {
         match value {
             crate::types::Type::Concrete(concrete_type) => match concrete_type.ident.as_str() {
@@ -618,7 +618,7 @@ impl Checker {
     }
 }
 
-fn collect_fn(item_fn: &ItemFn<'_>) -> Result<(String, Type), Error> {
+fn collect_fn(item_fn: &ItemFn) -> Result<(String, Type), Error> {
     let pos: Vec<_> = item_fn
         .signature
         .positional_params

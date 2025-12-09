@@ -1,4 +1,4 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
@@ -9,18 +9,26 @@ use crate::expr::Expr;
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprBreak<'a> {
-    expr: Option<Box<Expr<'a>>>,
+pub struct ExprBreak {
+    expr: Option<Box<Expr>>,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprBreak<'a> {
-    pub fn parser<I>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl ExprBreak {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone
+        + 'a,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         just(Token::Break)
             .ignore_then(expr.or_not())
             .map_with(|expr, extra| Self {
@@ -32,7 +40,7 @@ impl<'a> ExprBreak<'a> {
     }
 }
 
-impl WriteRuby for ExprBreak<'_> {
+impl WriteRuby for ExprBreak {
     fn write_ruby(&self, scope: &mut Scope) {
         if let Some(expr) = &self.expr {
             scope.fragment("break ");
@@ -43,7 +51,7 @@ impl WriteRuby for ExprBreak<'_> {
     }
 }
 
-impl Infer for ExprBreak<'_> {
+impl Infer for ExprBreak {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let ty = match &self.expr {
             Some(expr) => (*expr).infer(checker, context)?,

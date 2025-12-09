@@ -1,7 +1,6 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 
-use crate::Spanned;
 use crate::ast::{RecordField, TupleField, Visibility};
 use crate::compiler::{Scope, WriteRuby};
 use crate::item::ItemFn;
@@ -9,21 +8,20 @@ use crate::token::Token;
 use crate::types::Type;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ItemStruct<'a> {
+pub struct ItemStruct {
     pub(crate) visibility: Visibility,
-    pub(crate) ty: Type<'a>,
-    pub(crate) fields: StructFields<'a>,
-    pub(crate) fns: Option<Vec<ItemFn<'a>>>,
+    pub(crate) ty: Type,
+    pub(crate) fields: StructFields,
+    pub(crate) fns: Option<Vec<ItemFn>>,
 }
 
-impl<'a> ItemStruct<'a> {
-    pub fn parser<I, M>(
-        make_input: M,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
-    {
+impl ItemStruct {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         Visibility::parser()
             .then_ignore(just(Token::Struct))
             .then(Type::parser())
@@ -35,7 +33,7 @@ impl<'a> ItemStruct<'a> {
                     .map(StructFields::Tuple)
                     .delimited_by(just(Token::LParen), just(Token::RParen))
                     .then(
-                        ItemFn::parser(make_input.clone(), true)
+                        ItemFn::parser(true)
                             .repeated()
                             .collect::<Vec<_>>()
                             .delimited_by(just(Token::LBrace), just(Token::RBrace))
@@ -53,15 +51,10 @@ impl<'a> ItemStruct<'a> {
                             StructFields::Record(fields)
                         }
                     })
-                    .then(
-                        ItemFn::parser(make_input.clone(), true)
-                            .repeated()
-                            .collect::<Vec<_>>()
-                            .or_not(),
-                    )
+                    .then(ItemFn::parser(true).repeated().collect::<Vec<_>>().or_not())
                     .delimited_by(just(Token::LBrace), just(Token::RBrace))
                     .map(|(fields, fns)| (fields, fns)),
-                ItemFn::parser(make_input, true)
+                ItemFn::parser(true)
                     .repeated()
                     .collect::<Vec<_>>()
                     .delimited_by(just(Token::LBrace), just(Token::RBrace))
@@ -78,7 +71,7 @@ impl<'a> ItemStruct<'a> {
             .as_context()
     }
 
-    pub fn tuple_fields(&self) -> Option<&[TupleField<'_>]> {
+    pub fn tuple_fields(&self) -> Option<&[TupleField]> {
         if let StructFields::Tuple(fields) = &self.fields {
             Some(fields)
         } else {
@@ -86,7 +79,7 @@ impl<'a> ItemStruct<'a> {
         }
     }
 
-    pub fn record_fields(&self) -> Option<&[RecordField<'_>]> {
+    pub fn record_fields(&self) -> Option<&[RecordField]> {
         if let StructFields::Record(fields) = &self.fields {
             Some(fields)
         } else {
@@ -95,7 +88,7 @@ impl<'a> ItemStruct<'a> {
     }
 }
 
-impl WriteRuby for ItemStruct<'_> {
+impl WriteRuby for ItemStruct {
     fn write_ruby(&self, scope: &mut Scope) {
         match &self.fields {
             StructFields::Unit => {
@@ -307,8 +300,8 @@ impl WriteRuby for ItemStruct<'_> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum StructFields<'a> {
+pub enum StructFields {
     Unit,
-    Tuple(Vec<TupleField<'a>>),
-    Record(Vec<RecordField<'a>>),
+    Tuple(Vec<TupleField>),
+    Record(Vec<RecordField>),
 }

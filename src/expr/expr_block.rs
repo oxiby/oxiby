@@ -1,4 +1,4 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
@@ -9,18 +9,25 @@ use crate::expr::Expr;
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprBlock<'a> {
-    exprs: Vec<Expr<'a>>,
+pub struct ExprBlock {
+    exprs: Vec<Expr>,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprBlock<'a> {
-    pub fn parser<I>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl ExprBlock {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         expr.repeated()
             .collect::<Vec<_>>()
             .delimited_by(just(Token::LBrace), just(Token::RBrace))
@@ -32,16 +39,16 @@ impl<'a> ExprBlock<'a> {
             .as_context()
     }
 
-    pub fn iter(&'a self) -> std::slice::Iter<'a, Expr<'a>> {
+    pub fn iter(&self) -> std::slice::Iter<'_, Expr> {
         self.exprs.iter()
     }
 
-    pub fn unscoped(&self) -> UnscopedExprBlock<'_> {
-        UnscopedExprBlock(self)
+    pub fn unscoped(&self) -> UnscopedExprBlock {
+        UnscopedExprBlock(self.clone())
     }
 }
 
-impl WriteRuby for ExprBlock<'_> {
+impl WriteRuby for ExprBlock {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.block(|scope| {
             for expr in &self.exprs {
@@ -53,9 +60,9 @@ impl WriteRuby for ExprBlock<'_> {
     }
 }
 
-pub struct UnscopedExprBlock<'a>(&'a ExprBlock<'a>);
+pub struct UnscopedExprBlock(ExprBlock);
 
-impl WriteRuby for UnscopedExprBlock<'_> {
+impl WriteRuby for UnscopedExprBlock {
     fn write_ruby(&self, scope: &mut Scope) {
         for expr in &self.0.exprs {
             expr.write_ruby(scope);
@@ -65,7 +72,7 @@ impl WriteRuby for UnscopedExprBlock<'_> {
     }
 }
 
-impl Infer for ExprBlock<'_> {
+impl Infer for ExprBlock {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let mut inferred = check::Type::unit();
 

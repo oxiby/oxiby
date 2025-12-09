@@ -1,34 +1,36 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
-use crate::Spanned;
 use crate::compiler::{Scope, WriteRuby};
 use crate::expr::Expr;
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprString<'a> {
-    pub(crate) parts: Vec<ExprStringPart<'a>>,
+pub struct ExprString {
+    pub(crate) parts: Vec<ExprStringPart>,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprString<'a> {
-    pub fn parser<I, M>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone,
-        make_input: M,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
-    {
+impl ExprString {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         let expr_string_part_literal =
             select! { Token::StringPartLiteral(s) => ExprStringPart::Literal(s) };
 
-        let make_input_ = make_input.clone();
-
         let string_interpolation_tokens = select_ref! {
-            Token::StringPartExpr(tokens) = extra => make_input_(extra.span(), tokens.as_slice())
+            Token::StringPartExpr(tokens) = extra => tokens.split_spanned(extra.span())
         };
 
         let expr_string_part_expr = expr
@@ -41,7 +43,7 @@ impl<'a> ExprString<'a> {
             .repeated()
             .collect::<Vec<_>>()
             .nested_in(select_ref! {
-                Token::String(tokens) = extra => make_input(extra.span(), tokens.as_slice()),
+                Token::String(tokens) = extra => tokens.split_spanned(extra.span()),
             })
             .map_with(|parts, extra| Self {
                 parts,
@@ -51,7 +53,7 @@ impl<'a> ExprString<'a> {
     }
 }
 
-impl WriteRuby for ExprString<'_> {
+impl WriteRuby for ExprString {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.fragment('"');
 
@@ -65,15 +67,15 @@ impl WriteRuby for ExprString<'_> {
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
-pub enum ExprStringPart<'a> {
-    Literal(&'a str),
-    Expr(Box<Expr<'a>>),
+pub enum ExprStringPart {
+    Literal(String),
+    Expr(Box<Expr>),
 }
 
-impl WriteRuby for ExprStringPart<'_> {
+impl WriteRuby for ExprStringPart {
     fn write_ruby(&self, scope: &mut Scope) {
         match self {
-            Self::Literal(s) => scope.fragment(*s),
+            Self::Literal(s) => scope.fragment(s),
             Self::Expr(expr) => {
                 scope.fragment("#{");
                 expr.write_ruby(scope);

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use chumsky::Parser;
+use chumsky::input::Input;
 
 use crate::check::Checker;
 use crate::error::{Error, ErrorWithSource};
@@ -22,8 +23,8 @@ pub fn module_ast(source: &str) -> Result<String, Vec<Error>> {
     let (tokens, lex_errors) = crate::lexer().parse(source).into_output_errors();
 
     let parse_errors = if let Some(tokens) = &tokens {
-        let (items, parse_errors) = crate::parser(crate::make_input)
-            .parse(crate::make_input((0..source.len()).into(), tokens))
+        let (items, parse_errors) = crate::parser()
+            .parse(tokens.split_spanned((0..source.len()).into()))
             .into_output_errors();
 
         if let Some(items) = items {
@@ -61,8 +62,8 @@ pub fn module_program(
     let (tokens, lex_errors) = crate::lexer().parse(source).into_output_errors();
 
     let parse_errors = if let Some(tokens) = &tokens {
-        let (items, parse_errors) = crate::parser(crate::make_input)
-            .parse(crate::make_input((0..source.len()).into(), tokens))
+        let (items, parse_errors) = crate::parser()
+            .parse(tokens.split_spanned((0..source.len()).into()))
             .into_output_errors();
 
         if let Some(items) = items {
@@ -127,8 +128,8 @@ pub fn module_check(source: &str, debug: bool) -> Result<(), Vec<Error>> {
     let (tokens, lex_errors) = crate::lexer().parse(source).into_output_errors();
 
     let parse_errors = if let Some(tokens) = &tokens {
-        let (items, parse_errors) = crate::parser(crate::make_input)
-            .parse(crate::make_input((0..source.len()).into(), tokens))
+        let (items, parse_errors) = crate::parser()
+            .parse(tokens.split_spanned((0..source.len()).into()))
             .into_output_errors();
 
         if let Some(items) = items {

@@ -6,12 +6,12 @@ use crate::error::Error;
 use crate::expr::Expr;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprMap<'a> {
-    pub(crate) pairs: Vec<(Expr<'a>, Expr<'a>)>,
+pub struct ExprMap {
+    pub(crate) pairs: Vec<(Expr, Expr)>,
     pub(crate) span: SimpleSpan,
 }
 
-impl WriteRuby for ExprMap<'_> {
+impl WriteRuby for ExprMap {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.fragment("{ ");
         for (index, (key, value)) in self.pairs.iter().enumerate() {
@@ -27,7 +27,7 @@ impl WriteRuby for ExprMap<'_> {
     }
 }
 
-impl Infer for ExprMap<'_> {
+impl Infer for ExprMap {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let (inferred_key, key_span, inferred_value, value_span) = match self.pairs.first() {
             Some((key, value)) => (

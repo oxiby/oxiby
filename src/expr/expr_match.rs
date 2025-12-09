@@ -1,33 +1,38 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
-use crate::Spanned;
 use crate::compiler::{Scope, WriteRuby};
 use crate::expr::Expr;
 use crate::pattern::MatchArm;
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprMatch<'a> {
-    expr: Box<Expr<'a>>,
-    arms: Vec<MatchArm<'a>>,
+pub struct ExprMatch {
+    expr: Box<Expr>,
+    arms: Vec<MatchArm>,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprMatch<'a> {
-    pub fn parser<I, M>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone + 'a,
-        make_input: M,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
-    {
+impl ExprMatch {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone
+        + 'a,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         just(Token::Match)
             .ignore_then(expr.clone())
             .then(
-                MatchArm::parser(expr, make_input, true)
+                MatchArm::parser(expr, true)
                     .separated_by(just(Token::Comma))
                     .allow_trailing()
                     .collect::<Vec<_>>()
@@ -44,7 +49,7 @@ impl<'a> ExprMatch<'a> {
     }
 }
 
-impl WriteRuby for ExprMatch<'_> {
+impl WriteRuby for ExprMatch {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.fragment("case ");
         self.expr.write_ruby(scope);

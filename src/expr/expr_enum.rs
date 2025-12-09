@@ -1,4 +1,4 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
@@ -10,20 +10,27 @@ use crate::token::Token;
 use crate::types::TypeIdent;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprEnum<'a> {
-    ty: TypeIdent<'a>,
-    variant: TypeIdent<'a>,
-    constructor: EnumConstructor<'a>,
+pub struct ExprEnum {
+    ty: TypeIdent,
+    variant: TypeIdent,
+    constructor: EnumConstructor,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprEnum<'a> {
-    pub fn parser<I>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl ExprEnum {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         TypeIdent::parser()
             .then_ignore(just(Token::Dot))
             .then(TypeIdent::parser())
@@ -56,7 +63,7 @@ impl<'a> ExprEnum<'a> {
     }
 }
 
-impl WriteRuby for ExprEnum<'_> {
+impl WriteRuby for ExprEnum {
     fn write_ruby(&self, scope: &mut Scope) {
         self.ty.write_ruby(scope);
         scope.fragment(format!("::{}.allocate", self.variant));
@@ -94,7 +101,7 @@ impl WriteRuby for ExprEnum<'_> {
     }
 }
 
-impl Infer for ExprEnum<'_> {
+impl Infer for ExprEnum {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let name = self.ty.as_str();
 
@@ -230,8 +237,8 @@ impl Infer for ExprEnum<'_> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum EnumConstructor<'a> {
+pub enum EnumConstructor {
     Unit,
-    Tuple(Vec<Expr<'a>>),
-    Struct(Vec<(ExprIdent<'a>, Expr<'a>)>),
+    Tuple(Vec<Expr>),
+    Struct(Vec<(ExprIdent, Expr)>),
 }

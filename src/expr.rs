@@ -1,9 +1,8 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::pratt::{Operator as _, infix, left, postfix, prefix};
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
-use crate::Spanned;
 use crate::ast::Operator;
 use crate::check::{self, Checker, Context, Infer};
 use crate::compiler::{Scope, WriteRuby};
@@ -73,73 +72,70 @@ pub use expr_unary::ExprUnary;
 pub use expr_while_loop::ExprWhileLoop;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expr<'a> {
+pub enum Expr {
     // Literals
     Boolean(ExprBoolean),
     Integer(ExprInteger),
     Float(ExprFloat),
-    String(ExprString<'a>),
-    Range(ExprRange<'a>),
+    String(ExprString),
+    Range(ExprRange),
 
     // Compound primitives
-    Map(ExprMap<'a>),
-    List(ExprList<'a>),
-    Tuple(ExprTuple<'a>),
+    Map(ExprMap),
+    List(ExprList),
+    Tuple(ExprTuple),
 
     // Data structures
-    Struct(ExprStruct<'a>),
-    Enum(ExprEnum<'a>),
+    Struct(ExprStruct),
+    Enum(ExprEnum),
 
     // Identifiers
-    ExprIdent(ExprIdent<'a>),
-    TypeIdent(ExprTypeIdent<'a>),
+    ExprIdent(ExprIdent),
+    TypeIdent(ExprTypeIdent),
 
     // Member access
-    Field(ExprField<'a>),
-    Index(ExprIndex<'a>),
+    Field(ExprField),
+    Index(ExprIndex),
 
     // Calls
-    Call(ExprCall<'a>),
-    Closure(ExprClosure<'a>),
+    Call(ExprCall),
+    Closure(ExprClosure),
 
     // Control flow
-    Break(ExprBreak<'a>),
-    Conditional(ExprConditional<'a>),
+    Break(ExprBreak),
+    Conditional(ExprConditional),
     Continue(ExprContinue),
-    ForLoop(ExprForLoop<'a>),
-    Loop(ExprLoop<'a>),
-    Return(ExprReturn<'a>),
-    WhileLoop(ExprWhileLoop<'a>),
+    ForLoop(ExprForLoop),
+    Loop(ExprLoop),
+    Return(ExprReturn),
+    WhileLoop(ExprWhileLoop),
 
     // Patterns
-    Let(ExprLet<'a>),
-    Match(ExprMatch<'a>),
+    Let(ExprLet),
+    Match(ExprMatch),
 
     // Misc.
-    Block(ExprBlock<'a>),
-    Unary(ExprUnary<'a>),
-    Binary(ExprBinary<'a>),
-    Parenthesized(ExprParenthesized<'a>),
-    Ruby(ExprRuby<'a>),
+    Block(ExprBlock),
+    Unary(ExprUnary),
+    Binary(ExprBinary),
+    Parenthesized(ExprParenthesized),
+    Ruby(ExprRuby),
 }
 
-impl<'a> Expr<'a> {
-    pub fn parser<I, M>(
-        make_input: M,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
-    {
+impl Expr {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         recursive(|expr| {
             choice((
                 ExprCall::parser(expr.clone()).map(Expr::Call).boxed(), // must come before ExprIdent
                 ExprBoolean::parser().map(Expr::Boolean).boxed(),
                 ExprInteger::parser().map(Expr::Integer).boxed(),
                 ExprFloat::parser().map(Expr::Float).boxed(),
-                ExprString::parser(expr.clone(), make_input.clone())
-                    .map(Expr::String)
-                    .boxed(),
+                ExprString::parser(expr.clone()).map(Expr::String).boxed(),
                 ExprRange::parser(expr.clone()).map(Expr::Range).boxed(),
                 expr_array_parser(expr.clone()).boxed(),
                 ExprTuple::parser(expr.clone()).map(Expr::Tuple).boxed(),
@@ -153,20 +149,14 @@ impl<'a> Expr<'a> {
                     .map(Expr::Conditional)
                     .boxed(),
                 ExprContinue::parser().map(Expr::Continue).boxed(),
-                ExprForLoop::parser(expr.clone(), make_input.clone())
-                    .map(Expr::ForLoop)
-                    .boxed(),
+                ExprForLoop::parser(expr.clone()).map(Expr::ForLoop).boxed(),
                 ExprLoop::parser(expr.clone()).map(Expr::Loop).boxed(),
                 ExprReturn::parser(expr.clone()).map(Expr::Return).boxed(),
                 ExprWhileLoop::parser(expr.clone())
                     .map(Expr::WhileLoop)
                     .boxed(),
-                ExprLet::parser(expr.clone(), make_input.clone())
-                    .map(Expr::Let)
-                    .boxed(),
-                ExprMatch::parser(expr.clone(), make_input)
-                    .map(Expr::Match)
-                    .boxed(),
+                ExprLet::parser(expr.clone()).map(Expr::Let).boxed(),
+                ExprMatch::parser(expr.clone()).map(Expr::Match).boxed(),
                 ExprBlock::parser(expr.clone()).map(Expr::Block).boxed(),
                 ExprParenthesized::parser(expr.clone())
                     .map(Expr::Parenthesized)
@@ -499,7 +489,7 @@ impl<'a> Expr<'a> {
     }
 }
 
-impl WriteRuby for Expr<'_> {
+impl WriteRuby for Expr {
     fn write_ruby(&self, scope: &mut Scope) {
         match self {
             Self::Boolean(expr_boolean) => expr_boolean.write_ruby(scope),
@@ -536,7 +526,7 @@ impl WriteRuby for Expr<'_> {
     }
 }
 
-impl Infer for Expr<'_> {
+impl Infer for Expr {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let ty = match self {
             // Literals

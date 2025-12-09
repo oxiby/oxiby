@@ -1,7 +1,6 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 
-use crate::Spanned;
 use crate::ast::Visibility;
 use crate::check::{self, Checker, Context, Infer};
 use crate::compiler::{Scope, WriteRuby};
@@ -11,24 +10,24 @@ use crate::token::Token;
 use crate::types::{Constraint, Type};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ItemFn<'a> {
-    pub(crate) signature: Signature<'a>,
-    pub(crate) body: Vec<Expr<'a>>,
+pub struct ItemFn {
+    pub(crate) signature: Signature,
+    pub(crate) body: Vec<Expr>,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ItemFn<'a> {
-    pub fn parser<I, M>(
-        make_input: M,
+impl ItemFn {
+    pub fn parser<'a>(
         associated_fn: bool,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
-    {
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         Signature::parser(associated_fn)
             .then(
-                Expr::parser(make_input)
+                Expr::parser()
                     .repeated()
                     .collect::<Vec<_>>()
                     .delimited_by(just(Token::LBrace), just(Token::RBrace)),
@@ -68,7 +67,7 @@ impl<'a> ItemFn<'a> {
     }
 }
 
-impl WriteRuby for ItemFn<'_> {
+impl WriteRuby for ItemFn {
     fn write_ruby(&self, scope: &mut Scope) {
         let mut def = if self.signature.self_param {
             format!("def {}", self.signature.name)
@@ -120,7 +119,7 @@ impl WriteRuby for ItemFn<'_> {
     }
 }
 
-impl Infer for ItemFn<'_> {
+impl Infer for ItemFn {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let mut inferred = check::Type::unit();
 
@@ -158,25 +157,27 @@ impl Infer for ItemFn<'_> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Signature<'a> {
+pub struct Signature {
     pub(crate) visibility: Visibility,
-    pub(crate) name: ExprIdent<'a>,
+    pub(crate) name: ExprIdent,
     pub(crate) self_param: bool,
     pub(crate) associated_fn: bool,
-    pub(crate) positional_params: Vec<FnParam<'a>>,
-    pub(crate) keyword_params: Vec<FnParam<'a>>,
-    pub(crate) return_ty: Option<Type<'a>>,
-    pub(crate) constraints: Option<Vec<Constraint<'a>>>,
+    pub(crate) positional_params: Vec<FnParam>,
+    pub(crate) keyword_params: Vec<FnParam>,
+    pub(crate) return_ty: Option<Type>,
+    pub(crate) constraints: Option<Vec<Constraint>>,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> Signature<'a> {
-    pub fn parser<I>(
+impl Signature {
+    pub fn parser<'a>(
         associated_fn: bool,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         let param_list = choice((
             just(Token::SelfTerm)
                 .map(|_| (true, Vec::with_capacity(0), Vec::with_capacity(0)))
@@ -249,18 +250,19 @@ impl<'a> Signature<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FnParam<'a> {
-    pub(crate) ident: ExprIdent<'a>,
-    pub(crate) ty: Type<'a>,
+pub struct FnParam {
+    pub(crate) ident: ExprIdent,
+    pub(crate) ty: Type,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> FnParam<'a> {
-    pub fn parser<I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl FnParam {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         ExprIdent::parser()
             .then_ignore(just(Token::Colon))
             .then(Type::parser())

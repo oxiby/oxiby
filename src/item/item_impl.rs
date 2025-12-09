@@ -1,29 +1,27 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 
 use super::ItemFn;
-use crate::Spanned;
 use crate::compiler::{Scope, WriteRuby};
 use crate::token::Token;
 use crate::types::{AssociatedType, Constraint, Type};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ItemImpl<'a> {
-    name: Type<'a>,
-    target: Type<'a>,
-    constraints: Option<Vec<Constraint<'a>>>,
-    associated_types: Option<Vec<AssociatedType<'a>>>,
-    functions: Vec<ItemFn<'a>>,
+pub struct ItemImpl {
+    name: Type,
+    target: Type,
+    constraints: Option<Vec<Constraint>>,
+    associated_types: Option<Vec<AssociatedType>>,
+    functions: Vec<ItemFn>,
 }
 
-impl<'a> ItemImpl<'a> {
-    pub fn parser<I, M>(
-        make_input: M,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
-    {
+impl ItemImpl {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         just(Token::Impl)
             .ignore_then(Type::parser())
             .then_ignore(just(Token::For))
@@ -37,12 +35,7 @@ impl<'a> ItemImpl<'a> {
                     .collect::<Vec<_>>()
                     .or_not(),
             )
-            .then(
-                ItemFn::parser(make_input, true)
-                    .repeated()
-                    .collect::<Vec<_>>()
-                    .or_not(),
-            )
+            .then(ItemFn::parser(true).repeated().collect::<Vec<_>>().or_not())
             .then_ignore(just(Token::RBrace))
             .map(
                 |((((name, target), constraints), associated_types), functions)| Self {
@@ -62,7 +55,7 @@ impl<'a> ItemImpl<'a> {
     }
 }
 
-impl WriteRuby for ItemImpl<'_> {
+impl WriteRuby for ItemImpl {
     fn write_ruby(&self, scope: &mut Scope) {
         if self.is_empty() {
             return;

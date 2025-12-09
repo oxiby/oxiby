@@ -1,7 +1,6 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 
-use crate::Spanned;
 use crate::ast::Visibility;
 use crate::expr::Expr;
 use crate::item::item_fn::Signature;
@@ -9,22 +8,21 @@ use crate::token::Token;
 use crate::types::{AssociatedType, Constraint, Type};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ItemTrait<'a> {
+pub struct ItemTrait {
     visibility: Visibility,
-    name: Type<'a>,
-    constraints: Option<Vec<Constraint<'a>>>,
-    associated_types: Option<Vec<AssociatedType<'a>>>,
-    functions: Vec<TraitFn<'a>>,
+    name: Type,
+    constraints: Option<Vec<Constraint>>,
+    associated_types: Option<Vec<AssociatedType>>,
+    functions: Vec<TraitFn>,
 }
 
-impl<'a> ItemTrait<'a> {
-    pub fn parser<I, M>(
-        make_input: M,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
-    {
+impl ItemTrait {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         Visibility::parser()
             .then_ignore(just(Token::Trait))
             .then(Type::parser())
@@ -38,7 +36,7 @@ impl<'a> ItemTrait<'a> {
                     .or_not(),
             )
             .then(
-                TraitFn::parser(make_input, true)
+                TraitFn::parser(true)
                     .repeated()
                     .collect::<Vec<_>>()
                     .or_not(),
@@ -59,24 +57,24 @@ impl<'a> ItemTrait<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TraitFn<'a> {
-    pub(crate) signature: Signature<'a>,
-    pub(crate) body: Option<Vec<Expr<'a>>>,
+pub struct TraitFn {
+    pub(crate) signature: Signature,
+    pub(crate) body: Option<Vec<Expr>>,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> TraitFn<'a> {
-    pub fn parser<I, M>(
-        make_input: M,
+impl TraitFn {
+    pub fn parser<'a>(
         associated_fn: bool,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
-    {
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         Signature::parser(associated_fn)
             .then(
-                Expr::parser(make_input)
+                Expr::parser()
                     .repeated()
                     .collect::<Vec<_>>()
                     .delimited_by(just(Token::LBrace), just(Token::RBrace))

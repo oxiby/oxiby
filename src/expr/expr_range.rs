@@ -1,4 +1,4 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
@@ -7,20 +7,28 @@ use crate::expr::Expr;
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprRange<'a> {
-    start: Option<Box<Expr<'a>>>,
-    end: Option<Box<Expr<'a>>>,
+pub struct ExprRange {
+    start: Option<Box<Expr>>,
+    end: Option<Box<Expr>>,
     inclusive: bool,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprRange<'a> {
-    pub fn parser<I>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone + 'a,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl ExprRange {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone
+        + 'a,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         expr.clone()
             .or_not()
             .then_ignore(just(Token::Dot).then(just(Token::Dot)))
@@ -41,7 +49,7 @@ impl<'a> ExprRange<'a> {
     }
 }
 
-impl WriteRuby for ExprRange<'_> {
+impl WriteRuby for ExprRange {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.fragment("(");
 

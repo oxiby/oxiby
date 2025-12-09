@@ -6,13 +6,13 @@ use crate::error::Error;
 use crate::expr::Expr;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprIndex<'a> {
-    pub(crate) expr: Box<Expr<'a>>,
-    pub(crate) index: Box<Expr<'a>>,
+pub struct ExprIndex {
+    pub(crate) expr: Box<Expr>,
+    pub(crate) index: Box<Expr>,
     pub(crate) span: SimpleSpan,
 }
 
-impl WriteRuby for ExprIndex<'_> {
+impl WriteRuby for ExprIndex {
     fn write_ruby(&self, scope: &mut Scope) {
         self.expr.write_ruby(scope);
         scope.fragment("[");
@@ -21,7 +21,7 @@ impl WriteRuby for ExprIndex<'_> {
     }
 }
 
-impl Infer for ExprIndex<'_> {
+impl Infer for ExprIndex {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         let expr_ty = self.expr.infer(checker, context)?;
         let index_ty = (*self.index).infer(checker, context)?;

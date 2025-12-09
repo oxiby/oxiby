@@ -1,40 +1,45 @@
 use std::fmt::Display;
 
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 
-use crate::Spanned;
 use crate::compiler::{Scope, WriteRuby};
 use crate::expr::{Expr, ExprBoolean, ExprFloat, ExprIdent, ExprInteger, ExprString};
 use crate::token::Token;
 use crate::types::{Type, TypeIdent};
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Pattern<'a> {
-    Literal(PatternLiteral<'a>), // "example"
-    Type(PatternType<'a>),       // x: Example
-    Ident(PatternIdent<'a>),     // x
-    Tuple(PatternTuple<'a>),     // (pattern, pattern)
-    Ctor(PatternCtor<'a>),       // Example, Example(x, y), Example { x, y -> y2, z -> z2 = "foo" }
-    Wildcard,                    // _
+pub enum Pattern {
+    Literal(PatternLiteral), // "example"
+    Type(PatternType),       // x: Example
+    Ident(PatternIdent),     // x
+    Tuple(PatternTuple),     // (pattern, pattern)
+    Ctor(PatternCtor),       // Example, Example(x, y), Example { x, y -> y2, z -> z2 = "foo" }
+    Wildcard,                // _
 }
 
-impl<'a> Pattern<'a> {
-    pub fn parser<I, M>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone + 'a,
-        make_input: M,
+impl Pattern {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone
+        + 'a,
         is_bracketed: bool,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
-    {
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         let mut pattern_parser = Recursive::declare();
         let mut pattern_ctor_parser = Recursive::declare();
 
         pattern_parser.define(choice((
             just(Token::Underscore).to(Self::Wildcard),
-            PatternLiteral::parser(expr.clone(), make_input.clone()).map(Self::Literal),
+            PatternLiteral::parser(expr.clone()).map(Self::Literal),
             PatternType::parser().map(Self::Type),
             PatternIdent::parser().map(Self::Ident),
             pattern_ctor_parser.clone().map(Self::Ctor),
@@ -108,7 +113,7 @@ impl<'a> Pattern<'a> {
     }
 }
 
-impl WriteRuby for Pattern<'_> {
+impl WriteRuby for Pattern {
     fn write_ruby(&self, scope: &mut Scope) {
         match self {
             Self::Literal(pattern_literal) => pattern_literal.write_ruby(scope),
@@ -122,27 +127,33 @@ impl WriteRuby for Pattern<'_> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum PatternLiteral<'a> {
+pub enum PatternLiteral {
     Boolean(ExprBoolean),
     Integer(ExprInteger),
     Float(ExprFloat),
-    String(ExprString<'a>),
+    String(ExprString),
 }
 
-impl<'a> PatternLiteral<'a> {
-    pub fn parser<I, M>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone + 'a,
-        make_input: M,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
-    {
+impl PatternLiteral {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone
+        + 'a,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         choice((
             ExprBoolean::parser().map(Self::Boolean),
             ExprInteger::parser().map(Self::Integer),
             ExprFloat::parser().map(Self::Float),
-            ExprString::parser(expr, make_input).map(Self::String),
+            ExprString::parser(expr).map(Self::String),
         ))
         .labelled("literal pattern")
         .as_context()
@@ -150,7 +161,7 @@ impl<'a> PatternLiteral<'a> {
     }
 }
 
-impl WriteRuby for PatternLiteral<'_> {
+impl WriteRuby for PatternLiteral {
     fn write_ruby(&self, scope: &mut Scope) {
         match self {
             Self::Boolean(boolean) => boolean.write_ruby(scope),
@@ -162,16 +173,17 @@ impl WriteRuby for PatternLiteral<'_> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct PatternIdent<'a> {
-    pub(crate) ident: ExprIdent<'a>,
+pub struct PatternIdent {
+    pub(crate) ident: ExprIdent,
 }
 
-impl<'a> PatternIdent<'a> {
-    pub fn parser<I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl PatternIdent {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         ExprIdent::parser()
             .map(|ident| Self { ident })
             .labelled("ident pattern")
@@ -180,30 +192,31 @@ impl<'a> PatternIdent<'a> {
     }
 }
 
-impl Display for PatternIdent<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for PatternIdent {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.ident)
     }
 }
 
-impl WriteRuby for PatternIdent<'_> {
+impl WriteRuby for PatternIdent {
     fn write_ruby(&self, scope: &mut Scope) {
         self.ident.write_ruby(scope);
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct PatternType<'a> {
-    ident: ExprIdent<'a>,
-    ty: Type<'a>,
+pub struct PatternType {
+    ident: ExprIdent,
+    ty: Type,
 }
 
-impl<'a> PatternType<'a> {
-    pub fn parser<I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl PatternType {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         ExprIdent::parser()
             .then_ignore(just(Token::Colon))
             .then(Type::parser())
@@ -214,25 +227,25 @@ impl<'a> PatternType<'a> {
     }
 }
 
-impl Display for PatternType<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for PatternType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.ident)
     }
 }
 
-impl WriteRuby for PatternType<'_> {
+impl WriteRuby for PatternType {
     fn write_ruby(&self, scope: &mut Scope) {
         self.ident.write_ruby(scope);
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct PatternTuple<'a> {
-    pub(crate) patterns: Vec<Pattern<'a>>,
+pub struct PatternTuple {
+    pub(crate) patterns: Vec<Pattern>,
     is_bracketed: bool,
 }
 
-impl WriteRuby for PatternTuple<'_> {
+impl WriteRuby for PatternTuple {
     fn write_ruby(&self, scope: &mut Scope) {
         if self.is_bracketed {
             scope.fragment("[");
@@ -253,13 +266,13 @@ impl WriteRuby for PatternTuple<'_> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct PatternCtor<'a> {
-    parent_ty_ident: Option<TypeIdent<'a>>,
-    ty_ident: TypeIdent<'a>,
-    fields: CtorFields<'a>,
+pub struct PatternCtor {
+    parent_ty_ident: Option<TypeIdent>,
+    ty_ident: TypeIdent,
+    fields: CtorFields,
 }
 
-impl WriteRuby for PatternCtor<'_> {
+impl WriteRuby for PatternCtor {
     fn write_ruby(&self, scope: &mut Scope) {
         // TODO: There are other places parent type idents appear. Make this more general.
         if let Some(parent_ty_ident) = &self.parent_ty_ident {
@@ -328,38 +341,44 @@ impl WriteRuby for PatternCtor<'_> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum CtorFields<'a> {
+pub enum CtorFields {
     Unit,
-    Tuple(Vec<ExprIdent<'a>>),
-    Struct(Vec<CtorStructField<'a>>),
+    Tuple(Vec<ExprIdent>),
+    Struct(Vec<CtorStructField>),
     Wildcard,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct CtorStructField<'a> {
-    name: ExprIdent<'a>,
-    rename: Option<ExprIdent<'a>>,
-    pattern: Option<Pattern<'a>>,
+pub struct CtorStructField {
+    name: ExprIdent,
+    rename: Option<ExprIdent>,
+    pattern: Option<Pattern>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct MatchArm<'a> {
-    pattern: Pattern<'a>,
-    body: Expr<'a>,
+pub struct MatchArm {
+    pattern: Pattern,
+    body: Expr,
     span: SimpleSpan,
 }
 
-impl<'a> MatchArm<'a> {
-    pub fn parser<I, M>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone + 'a,
-        make_input: M,
+impl MatchArm {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone
+        + 'a,
         is_bracketed: bool,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-        M: Fn(SimpleSpan, &'a [Spanned<Token<'a>>]) -> I + Clone + 'a,
-    {
-        Pattern::parser(expr.clone(), make_input, is_bracketed)
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
+        Pattern::parser(expr.clone(), is_bracketed)
             .then_ignore(just(Token::Arrow))
             .then(expr)
             .map_with(|(pattern, body), extra| Self {
@@ -373,7 +392,7 @@ impl<'a> MatchArm<'a> {
     }
 }
 
-impl WriteRuby for MatchArm<'_> {
+impl WriteRuby for MatchArm {
     fn write_ruby(&self, scope: &mut Scope) {
         if let Pattern::Wildcard = self.pattern {
             scope.fragment("else");

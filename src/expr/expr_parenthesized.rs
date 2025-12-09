@@ -1,4 +1,4 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
@@ -9,18 +9,25 @@ use crate::expr::Expr;
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprParenthesized<'a> {
-    expr: Box<Expr<'a>>,
+pub struct ExprParenthesized {
+    expr: Box<Expr>,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprParenthesized<'a> {
-    pub fn parser<I>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl ExprParenthesized {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         expr.delimited_by(just(Token::LParen), just(Token::RParen))
             .map_with(|expr, extra| Self {
                 expr: Box::new(expr),
@@ -31,7 +38,7 @@ impl<'a> ExprParenthesized<'a> {
     }
 }
 
-impl WriteRuby for ExprParenthesized<'_> {
+impl WriteRuby for ExprParenthesized {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.fragment("(");
         self.expr.write_ruby(scope);
@@ -39,7 +46,7 @@ impl WriteRuby for ExprParenthesized<'_> {
     }
 }
 
-impl Infer for ExprParenthesized<'_> {
+impl Infer for ExprParenthesized {
     fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
         self.expr.infer(checker, context)
     }

@@ -1,4 +1,4 @@
-use chumsky::input::BorrowInput;
+use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
@@ -8,20 +8,27 @@ use crate::token::Token;
 use crate::types::Type;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprClosure<'a> {
-    params: Vec<FnArg<'a>>,
-    return_ty: Option<Type<'a>>,
-    body: Vec<Expr<'a>>,
+pub struct ExprClosure {
+    params: Vec<FnArg>,
+    return_ty: Option<Type>,
+    body: Vec<Expr>,
     pub(crate) span: SimpleSpan,
 }
 
-impl<'a> ExprClosure<'a> {
-    pub fn parser<I>(
-        expr: impl Parser<'a, I, Expr<'a>, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone,
-    ) -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl ExprClosure {
+    pub fn parser<'a>(
+        expr: impl Parser<
+            'a,
+            MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+            Expr,
+            extra::Err<Rich<'a, Token, SimpleSpan>>,
+        > + Clone,
+    ) -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         let param_list = FnArg::parser()
             .separated_by(just(Token::Comma))
             .collect::<Vec<_>>()
@@ -49,7 +56,7 @@ impl<'a> ExprClosure<'a> {
     }
 }
 
-impl WriteRuby for ExprClosure<'_> {
+impl WriteRuby for ExprClosure {
     fn write_ruby(&self, scope: &mut Scope) {
         scope.fragment("-> ");
 
@@ -82,17 +89,18 @@ impl WriteRuby for ExprClosure<'_> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FnArg<'a> {
-    binding: ExprIdent<'a>,
-    ty: Option<Type<'a>>,
+pub struct FnArg {
+    binding: ExprIdent,
+    ty: Option<Type>,
 }
 
-impl<'a> FnArg<'a> {
-    pub fn parser<I>()
-    -> impl Parser<'a, I, Self, extra::Err<Rich<'a, Token<'a>, SimpleSpan>>> + Clone
-    where
-        I: BorrowInput<'a, Token = Token<'a>, Span = SimpleSpan>,
-    {
+impl FnArg {
+    pub fn parser<'a>() -> impl Parser<
+        'a,
+        MappedInput<'a, Token, SimpleSpan, &'a [Spanned<Token>]>,
+        Self,
+        extra::Err<Rich<'a, Token, SimpleSpan>>,
+    > + Clone {
         ExprIdent::parser()
             .then(just(Token::Colon).ignore_then(Type::parser()).or_not())
             .map(|(binding, ty)| FnArg { binding, ty })
