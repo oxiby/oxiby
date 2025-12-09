@@ -11,6 +11,7 @@ use crate::error::Error;
 use crate::token::Token;
 
 mod expr_array;
+mod expr_binary;
 mod expr_block;
 mod expr_boolean;
 mod expr_break;
@@ -19,9 +20,11 @@ mod expr_closure;
 mod expr_conditional;
 mod expr_continue;
 mod expr_enum;
+mod expr_field;
 mod expr_float;
 mod expr_for_loop;
 mod expr_ident;
+mod expr_index;
 mod expr_integer;
 mod expr_let;
 mod expr_list;
@@ -35,9 +38,11 @@ mod expr_ruby;
 mod expr_string;
 mod expr_struct;
 mod expr_tuple;
+mod expr_unary;
 mod expr_while_loop;
 
 pub use expr_array::expr_array_parser;
+pub use expr_binary::ExprBinary;
 pub use expr_block::ExprBlock;
 pub use expr_boolean::ExprBoolean;
 pub use expr_break::ExprBreak;
@@ -46,9 +51,11 @@ pub use expr_closure::ExprClosure;
 pub use expr_conditional::ExprConditional;
 pub use expr_continue::ExprContinue;
 pub use expr_enum::ExprEnum;
+pub use expr_field::ExprField;
 pub use expr_float::ExprFloat;
 pub use expr_for_loop::ExprForLoop;
 pub use expr_ident::{ExprIdent, ExprTypeIdent};
+pub use expr_index::ExprIndex;
 pub use expr_integer::ExprInteger;
 pub use expr_let::ExprLet;
 pub use expr_list::ExprList;
@@ -62,6 +69,7 @@ pub use expr_ruby::ExprRuby;
 pub use expr_string::ExprString;
 pub use expr_struct::{ExprStruct, check_records};
 pub use expr_tuple::ExprTuple;
+pub use expr_unary::ExprUnary;
 pub use expr_while_loop::ExprWhileLoop;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -619,403 +627,5 @@ impl Infer for Expr<'_> {
         };
 
         Ok(ty)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ExprBinary<'a> {
-    pub(crate) op: Operator,
-    pub(crate) lhs: Box<Expr<'a>>,
-    pub(crate) rhs: Box<Expr<'a>>,
-    pub(crate) span: SimpleSpan,
-}
-
-impl WriteRuby for ExprBinary<'_> {
-    fn write_ruby(&self, scope: &mut Scope) {
-        self.lhs.write_ruby(scope);
-        scope.fragment(format!(" {} ", self.op));
-        self.rhs.write_ruby(scope);
-    }
-}
-
-impl Infer for ExprBinary<'_> {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
-        let lhs_type = self.lhs.infer(checker, context)?;
-        let rhs_type = self.rhs.infer(checker, context)?;
-
-        // For now, assume that lhs implements the operator and that rhs is the appropriate type.
-        Ok(match &self.op {
-            Operator::Assign => rhs_type,
-            Operator::AddAssign
-            | Operator::DivAssign
-            | Operator::MultAssign
-            | Operator::SubAssign => lhs_type,
-            Operator::And
-            | Operator::Or
-            | Operator::Eq
-            | Operator::Ne
-            | Operator::LtEq
-            | Operator::GtEq
-            | Operator::Lt
-            | Operator::Gt => check::Type::boolean(),
-            Operator::Mul | Operator::Div | Operator::Mod | Operator::Add | Operator::Sub => {
-                check::Type::integer()
-            }
-            Operator::Not => unreachable!("Cannot have a binary `Not` expression."),
-        })
-    }
-}
-#[derive(Debug, Clone, PartialEq)]
-pub struct ExprUnary<'a> {
-    op: Operator,
-    expr: Box<Expr<'a>>,
-    span: SimpleSpan,
-}
-
-impl WriteRuby for ExprUnary<'_> {
-    fn write_ruby(&self, scope: &mut Scope) {
-        scope.fragment(self.op.to_string());
-        self.expr.write_ruby(scope);
-    }
-}
-
-impl Infer for ExprUnary<'_> {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
-        let ty = (*self.expr).infer(checker, context)?;
-
-        match self.op {
-            Operator::Sub => match ty {
-                check::Type::Primitive(primitive)
-                    if primitive == check::PrimitiveType::Integer
-                        || primitive == check::PrimitiveType::Float => {}
-                _ => {
-                    return Err(Error::build("Invalid unary expression")
-                        .with_detail(
-                            &format!(
-                                "The `-` unary operator can only be applied to expressions of \
-                                 type `Integer` or `Float`, but was applied to expression of type \
-                                 `{ty}`."
-                            ),
-                            self.span,
-                        )
-                        .finish());
-                }
-            },
-            Operator::Not => {
-                if matches!(ty, check::Type::Primitive(primitive) if primitive == check::PrimitiveType::Boolean)
-                {
-                } else {
-                    return Err(Error::build("Invalid unary expression")
-                        .with_detail(
-                            &format!(
-                                "The `!` unary operator can only be applied to expressions of \
-                                 type `Boolean`, but was applied to expression of type `{ty}`."
-                            ),
-                            self.span,
-                        )
-                        .finish());
-                }
-            }
-            operator => {
-                return Err(Error::build("Invalid unary expression")
-                    .with_detail(
-                        &format!("`{operator}` cannot be used in prefix position."),
-                        self.span,
-                    )
-                    .finish());
-            }
-        }
-
-        Ok(ty)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ExprField<'a> {
-    lhs: Box<Expr<'a>>,
-    rhs: Box<Expr<'a>>,
-    span: SimpleSpan,
-}
-
-impl WriteRuby for ExprField<'_> {
-    fn write_ruby(&self, scope: &mut Scope) {
-        match *self.lhs {
-            Expr::ExprIdent(ref expr_ident) if expr_ident.as_str() == "self" => (),
-            Expr::TypeIdent(ref expr_type_ident) => {
-                let ident_str = expr_type_ident.as_str();
-
-                let resolved_ident_string = match scope.resolve_ident(ident_str) {
-                    Some((path, _kind)) => path,
-                    None => ident_str.to_string(),
-                };
-
-                scope.fragment(resolved_ident_string);
-                scope.fragment(".");
-            }
-            _ => {
-                self.lhs.write_ruby(scope);
-                scope.fragment(".");
-            }
-        }
-
-        if let Expr::Integer(_) = *self.rhs {
-            scope.fragment("__");
-        }
-
-        self.rhs.write_ruby(scope);
-    }
-}
-
-impl Infer for ExprField<'_> {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
-        let ty: check::Type = if let Expr::TypeIdent(ref expr_type_ident) = *self.lhs {
-            let (lhs_ty, members) = match checker.type_constructors.get(expr_type_ident.as_str()) {
-                Some((lhs_ty, members)) => (lhs_ty.clone(), members.clone()),
-                None => {
-                    return Err(Error::build("Unknown type")
-                        .with_detail(
-                            &format!("Type `{}` is not in scope.", expr_type_ident.as_str()),
-                            expr_type_ident.span,
-                        )
-                        .with_help("You might need to import this type from another module.")
-                        .finish());
-                }
-            };
-
-            if let Expr::Call(ref expr_call) = *self.rhs {
-                let name = expr_call.name.as_str();
-
-                let Some(rhs_ty) = members.functions.get(name) else {
-                    return Err(Error::build("Unknown method")
-                        .with_detail(
-                            &format!("Type `{lhs_ty}` does not have a method `{name}`.",),
-                            expr_call.span,
-                        )
-                        .finish());
-                };
-
-                let check::Type::Fn(function) = rhs_ty else {
-                    return Err(Error::type_mismatch()
-                        .with_detail(
-                            &format!(
-                                "Value `{}` is of type `{lhs_ty}` but is being called as a \
-                                 function.",
-                                rhs_ty.full_name()
-                            ),
-                            self.span,
-                        )
-                        .finish());
-                };
-
-                if !function.is_static {
-                    return Err(Error::build("Invalid static method call")
-                        .with_detail(
-                            &format!(
-                                "`{name}` is being called as a static method, but it is an \
-                                 instance method."
-                            ),
-                            self.rhs.span(),
-                        )
-                        .with_help(&format!(
-                            "Try calling the method on a value of type `{lhs_ty}`."
-                        ))
-                        .finish());
-                }
-
-                infer_function(
-                    checker,
-                    context,
-                    function,
-                    expr_call.positional_args.iter(),
-                    expr_call.span,
-                    Noun::Function,
-                )?
-            } else {
-                todo!(
-                    "TODO: Inference for fields where `lhs` is a type identifier and `rhs` isn't \
-                     a call."
-                );
-            }
-        } else if let Expr::ExprIdent(ref expr_ident) = *self.lhs {
-            let lhs_ty = context.find(expr_ident.as_str(), expr_ident.span)?;
-
-            let members = match checker.type_constructors.get(&lhs_ty.full_name()) {
-                Some((_ty, members)) => members.clone(),
-                None => panic!(
-                    "Should always exist because we were able to find the type in the context."
-                ),
-            };
-
-            if let Expr::Call(ref expr_call) = *self.rhs {
-                let name = expr_call.name.as_str();
-
-                let Some(rhs_ty) = members.functions.get(name) else {
-                    return Err(Error::build("Unknown method")
-                        .with_detail(
-                            &format!("Type `{lhs_ty}` does not have a method `{name}`.",),
-                            expr_call.span,
-                        )
-                        .finish());
-                };
-
-                let check::Type::Fn(function) = rhs_ty else {
-                    return Err(Error::type_mismatch()
-                        .with_detail(
-                            &format!(
-                                "Value `{}` is of type `{rhs_ty}` but is being called as a \
-                                 function.",
-                                rhs_ty.full_name()
-                            ),
-                            self.span,
-                        )
-                        .finish());
-                };
-
-                if function.is_static {
-                    return Err(Error::build("Invalid method call")
-                        .with_detail(
-                            &format!(
-                                "`{name}` is being called as an instance method, but it is a \
-                                 static method."
-                            ),
-                            self.rhs.span(),
-                        )
-                        .with_help(&format!("Try using the syntax `{lhs_ty}.{name}(...)`."))
-                        .finish());
-                }
-                infer_function(
-                    checker,
-                    context,
-                    function,
-                    expr_call.positional_args.iter(),
-                    expr_call.span,
-                    Noun::Function,
-                )?
-            } else if let Expr::Integer(expr_integer) = &*self.rhs {
-                let Some(check::Type::Fn(function)) =
-                    members.value_constructors.get(&lhs_ty.base_name())
-                else {
-                    return Err(Error::build("Unknown field")
-                        .with_detail(
-                            &format!("Type `{}` has no field `{}`.", lhs_ty, expr_integer.value),
-                            self.rhs.span(),
-                        )
-                        .finish());
-                };
-
-                let param_index = usize::try_from(expr_integer.value).map_err(|_| {
-                    Error::build("Unknown field")
-                        .with_detail(
-                            &format!("Type `{}` has no field `{}`.", lhs_ty, expr_integer.value),
-                            self.rhs.span(),
-                        )
-                        .finish()
-                })?;
-
-                match function.positional_params.get(param_index) {
-                    Some(expr_ty) => expr_ty.clone(),
-                    None => {
-                        return Err(Error::build("Unknown field")
-                            .with_detail(
-                                &format!(
-                                    "Type `{}` has no field `{}`.",
-                                    lhs_ty, expr_integer.value
-                                ),
-                                self.rhs.span(),
-                            )
-                            .finish());
-                    }
-                }
-            } else {
-                todo!(
-                    "TODO: Inference for fields where `lhs` is an expression identifier and `rhs` \
-                     isn't a call. rhs: {:?}",
-                    self.rhs
-                );
-            }
-        } else {
-            todo!("TODO: Inference for fields where `lhs` isn't an identifier. Expr: {self:?}");
-        };
-
-        Ok(ty)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ExprIndex<'a> {
-    expr: Box<Expr<'a>>,
-    index: Box<Expr<'a>>,
-    span: SimpleSpan,
-}
-
-impl WriteRuby for ExprIndex<'_> {
-    fn write_ruby(&self, scope: &mut Scope) {
-        self.expr.write_ruby(scope);
-        scope.fragment("[");
-        self.index.write_ruby(scope);
-        scope.fragment("]");
-    }
-}
-
-impl Infer for ExprIndex<'_> {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
-        let expr_ty = self.expr.infer(checker, context)?;
-        let index_ty = (*self.index).infer(checker, context)?;
-
-        if let check::Type::Generic(generic_ty, ty_params) = expr_ty.clone() {
-            match *generic_ty {
-                check::Type::Constructor(name) if name == "List" => match index_ty {
-                    check::Type::Primitive(check::PrimitiveType::Integer) => {
-                        return Ok(ty_params[0].clone());
-                    }
-                    _ => {
-                        return Err(Error::build("Invalid index")
-                            .with_detail(
-                                &format!("`{index_ty}` cannot be used to index a list."),
-                                self.index.span(),
-                            )
-                            .with_context(
-                                &format!("This expression is of type `{expr_ty}`."),
-                                self.expr.span(),
-                            )
-                            .with_help("Try indexing the list with a value of type `Integer`.")
-                            .finish());
-                    }
-                },
-                check::Type::Constructor(ref name) if name == "Map" => {
-                    if index_ty == ty_params[0] {
-                        return Ok(ty_params[1].clone());
-                    }
-
-                    return Err(Error::build("Invalid index")
-                        .with_detail(
-                            &format!(
-                                "`{index_ty}` cannot used to index a map with `{}` keys.",
-                                ty_params[0]
-                            ),
-                            self.index.span(),
-                        )
-                        .with_context(
-                            &format!("This expression is of type `{expr_ty}`."),
-                            self.expr.span(),
-                        )
-                        .with_help(&format!(
-                            "Try indexing this map with a value of type `{}`.",
-                            ty_params[0]
-                        ))
-                        .finish());
-                }
-                _ => (),
-            }
-        }
-
-        Err(Error::build("Invalid index")
-            .with_detail(
-                &format!("Cannot index into a value of type `{expr_ty}`."),
-                self.expr.span(),
-            )
-            .with_context("The index expression is found here.", self.index.span())
-            .with_note("Only lists and maps can be indexed.")
-            .finish())
     }
 }
