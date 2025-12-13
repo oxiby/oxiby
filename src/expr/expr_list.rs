@@ -1,6 +1,6 @@
 use chumsky::span::SimpleSpan;
 
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::Expr;
@@ -26,9 +26,9 @@ impl WriteRuby for ExprList {
 }
 
 impl Infer for ExprList {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
         let (inferred, span) = match self.exprs.first() {
-            Some(expr) => (expr.infer(checker, context)?, expr.span()),
+            Some(expr) => (expr.infer(checker)?, expr.span()),
             None => {
                 return Ok(check::Type::Generic(
                     Box::new(check::Type::constructor("List")),
@@ -38,7 +38,7 @@ impl Infer for ExprList {
         };
 
         for expr in self.exprs.iter().skip(1) {
-            let next_inferred = expr.infer(checker, context)?;
+            let next_inferred = expr.infer(checker)?;
 
             if inferred != next_inferred {
                 return Err(Error::type_mismatch()

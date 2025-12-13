@@ -1,6 +1,6 @@
 use chumsky::span::SimpleSpan;
 
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::{Expr, Noun, infer_function};
@@ -42,7 +42,7 @@ impl WriteRuby for ExprField {
 }
 
 impl Infer for ExprField {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
         let ty: check::Type = if let Expr::TypeIdent(ref expr_type_ident) = *self.lhs {
             let (lhs_ty, members) = match checker.get_type_constructor(expr_type_ident.as_str()) {
                 Some((lhs_ty, members)) => (lhs_ty.clone(), members.clone()),
@@ -60,7 +60,7 @@ impl Infer for ExprField {
             if let Expr::Call(ref expr_call) = *self.rhs {
                 let name = expr_call.name.as_str();
 
-                let Some(rhs_ty) = members.functions.get(name) else {
+                let Some(rhs_ty) = members.get_function(name) else {
                     return Err(Error::build("Unknown method")
                         .with_detail(
                             &format!("Type `{lhs_ty}` does not have a method `{name}`.",),
@@ -99,7 +99,6 @@ impl Infer for ExprField {
 
                 infer_function(
                     checker,
-                    context,
                     function,
                     expr_call.positional_args.iter(),
                     expr_call.span,
@@ -112,7 +111,7 @@ impl Infer for ExprField {
                 );
             }
         } else if let Expr::ExprIdent(ref expr_ident) = *self.lhs {
-            let lhs_ty = context.find(expr_ident.as_str(), expr_ident.span)?;
+            let lhs_ty = checker.find_contextual(expr_ident.as_str(), expr_ident.span)?;
 
             let members = match checker.get_type_constructor(&lhs_ty.full_name()) {
                 Some((_ty, members)) => members.clone(),
@@ -124,7 +123,7 @@ impl Infer for ExprField {
             if let Expr::Call(ref expr_call) = *self.rhs {
                 let name = expr_call.name.as_str();
 
-                let Some(rhs_ty) = members.functions.get(name) else {
+                let Some(rhs_ty) = members.get_function(name) else {
                     return Err(Error::build("Unknown method")
                         .with_detail(
                             &format!("Type `{lhs_ty}` does not have a method `{name}`.",),
@@ -160,7 +159,6 @@ impl Infer for ExprField {
                 }
                 infer_function(
                     checker,
-                    context,
                     function,
                     expr_call.positional_args.iter(),
                     expr_call.span,
@@ -168,7 +166,7 @@ impl Infer for ExprField {
                 )?
             } else if let Expr::Integer(expr_integer) = &*self.rhs {
                 let Some(check::Type::Fn(function)) =
-                    members.value_constructors.get(&lhs_ty.base_name())
+                    members.get_value_constructor(&lhs_ty.base_name())
                 else {
                     return Err(Error::build("Unknown field")
                         .with_detail(

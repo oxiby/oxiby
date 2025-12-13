@@ -1,6 +1,6 @@
 use chumsky::span::SimpleSpan;
 
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::Expr;
@@ -22,9 +22,9 @@ impl WriteRuby for ExprIndex {
 }
 
 impl Infer for ExprIndex {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
-        let expr_ty = self.expr.infer(checker, context)?;
-        let index_ty = (*self.index).infer(checker, context)?;
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
+        let expr_ty = self.expr.infer(checker)?;
+        let index_ty = (*self.index).infer(checker)?;
 
         if let check::Type::Generic(generic_ty, ty_params) = expr_ty.clone() {
             match *generic_ty {

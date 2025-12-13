@@ -1,7 +1,7 @@
 use chumsky::span::SimpleSpan;
 
 use crate::ast::Operator;
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::Expr;
@@ -21,8 +21,8 @@ impl WriteRuby for ExprUnary {
 }
 
 impl Infer for ExprUnary {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
-        let ty = (*self.expr).infer(checker, context)?;
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
+        let ty = (*self.expr).infer(checker)?;
 
         match self.op {
             Operator::Sub => match ty {

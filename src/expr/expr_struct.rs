@@ -4,7 +4,7 @@ use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::{Expr, ExprIdent};
@@ -87,17 +87,18 @@ impl WriteRuby for ExprStruct {
 }
 
 impl Infer for ExprStruct {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
         let name = self.ty.to_string();
 
-        let (ty, members) = match checker.get_type_constructor(&name) {
-            Some((ty, members)) => (ty.clone(), members.clone()),
-            None => {
-                return Err(Error::build("Unknown type")
-                    .with_detail(&format!("Type `{name}` is not in scope."), self.span)
-                    .with_help("You might need to import this type from another module.")
-                    .finish());
-            }
+        let (ty, maybe_members) = if let Some((ty, members)) = checker.get_type_constructor(&name) {
+            (ty.clone(), Some(members.clone()))
+        } else if let Some(ty) = checker.get_value_constructor(&name) {
+            (ty.clone(), None)
+        } else {
+            return Err(Error::build("Unknown type")
+                .with_detail(&format!("Type `{name}` is not in scope."), self.span)
+                .with_help("You might need to import this type from another module.")
+                .finish());
         };
 
         let check::Type::RecordStruct(ty, fields) = ty else {
@@ -110,7 +111,7 @@ impl Infer for ExprStruct {
                     self.span,
                 )
                 .with_help(
-                    &(if members.value_constructors.contains_key(&name) {
+                    &(if maybe_members.is_some_and(|members| members.has_value_constructor(&name)) {
                         format!("Try using tuple struct syntax: `{ty}(...)`")
                     } else {
                         format!(
@@ -123,7 +124,6 @@ impl Infer for ExprStruct {
 
         check_records(
             checker,
-            context,
             &name,
             fields.iter(),
             self.fields.iter(),
@@ -137,7 +137,6 @@ impl Infer for ExprStruct {
 
 pub fn check_records<'a>(
     checker: &mut Checker,
-    context: &mut Context,
     name: &str,
     field_types: impl Iterator<Item = &'a (String, check::Type)>,
     field_values: impl Iterator<Item = &'a (ExprIdent, Expr)>,
@@ -176,7 +175,7 @@ pub fn check_records<'a>(
                 .finish());
         };
 
-        let expr_type = expr_field.0.infer(checker, context)?;
+        let expr_type = expr_field.0.infer(checker)?;
 
         if expr_type != field.1 {
             return Err(Error::type_mismatch()

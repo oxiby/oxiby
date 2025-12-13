@@ -3,7 +3,7 @@ use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
 use super::ExprBlock;
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::Expr;
@@ -70,8 +70,8 @@ impl WriteRuby for ExprForLoop {
 }
 
 impl Infer for ExprForLoop {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
-        let element_type = match self.items.infer(checker, context)? {
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
+        let element_type = match self.items.infer(checker)? {
             ref items_type @ check::Type::Generic(ref constructor_type, ref generic_types) => {
                 let name = constructor_type.base_name();
                 if name == "List" {
@@ -99,16 +99,16 @@ impl Infer for ExprForLoop {
             }
         };
 
-        context.push_scope();
+        checker.push_scope();
 
         match &self.pattern {
             Pattern::Ident(pattern_ident) => {
-                context.push_term_var(pattern_ident.ident.as_str(), element_type[0].clone());
+                checker.push_term_var(pattern_ident.ident.as_str(), element_type[0].clone());
             }
             Pattern::Tuple(pattern_tuple) => match &pattern_tuple.patterns.as_slice() {
                 [Pattern::Ident(key_ident), Pattern::Ident(value_ident)] => {
-                    context.push_term_var(key_ident.ident.as_str(), element_type[0].clone());
-                    context.push_term_var(value_ident.ident.as_str(), element_type[1].clone());
+                    checker.push_term_var(key_ident.ident.as_str(), element_type[0].clone());
+                    checker.push_term_var(value_ident.ident.as_str(), element_type[1].clone());
                 }
                 _ => todo!("Unsupported tuple pattern: {:?}", pattern_tuple),
             },
@@ -117,9 +117,9 @@ impl Infer for ExprForLoop {
             }
         }
 
-        let ty = self.block.infer(checker, context)?;
+        let ty = self.block.infer(checker)?;
 
-        context.pop_scope();
+        checker.pop_scope();
 
         Ok(ty)
     }

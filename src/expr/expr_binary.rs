@@ -1,7 +1,7 @@
 use chumsky::span::SimpleSpan;
 
 use crate::ast::Operator;
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::Expr;
@@ -23,9 +23,9 @@ impl WriteRuby for ExprBinary {
 }
 
 impl Infer for ExprBinary {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
-        let lhs_type = self.lhs.infer(checker, context)?;
-        let rhs_type = self.rhs.infer(checker, context)?;
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
+        let lhs_type = self.lhs.infer(checker)?;
+        let rhs_type = self.rhs.infer(checker)?;
 
         // For now, assume that lhs implements the operator and that rhs is the appropriate type.
         Ok(match &self.op {

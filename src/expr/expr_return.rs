@@ -2,7 +2,7 @@ use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::Expr;
@@ -50,9 +50,9 @@ impl WriteRuby for ExprReturn {
 }
 
 impl Infer for ExprReturn {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
         let ty = match &self.expr {
-            Some(expr) => (*expr).infer(checker, context)?,
+            Some(expr) => (*expr).infer(checker)?,
             None => check::Type::unit(),
         };
 

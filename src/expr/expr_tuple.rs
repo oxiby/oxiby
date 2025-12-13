@@ -2,7 +2,7 @@ use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::Expr;
@@ -78,7 +78,7 @@ impl WriteRuby for ExprTuple {
 }
 
 impl Infer for ExprTuple {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
         if self.exprs.is_empty() {
             return Ok(check::Type::unit());
         }
@@ -86,7 +86,7 @@ impl Infer for ExprTuple {
         let mut types = Vec::new();
 
         for expr in &self.exprs {
-            types.push(expr.infer(checker, context)?);
+            types.push(expr.infer(checker)?);
         }
 
         Ok(check::Type::Tuple(types))

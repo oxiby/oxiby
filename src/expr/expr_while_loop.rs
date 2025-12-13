@@ -2,7 +2,7 @@ use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::{Expr, ExprBlock};
@@ -54,8 +54,8 @@ impl WriteRuby for ExprWhileLoop {
 }
 
 impl Infer for ExprWhileLoop {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
-        let condition_type = self.condition.infer(checker, context)?;
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
+        let condition_type = self.condition.infer(checker)?;
 
         if condition_type != check::Type::boolean() {
             return Err(Error::type_mismatch()
@@ -66,7 +66,7 @@ impl Infer for ExprWhileLoop {
                 .finish());
         }
 
-        self.block.infer(checker, context)?;
+        self.block.infer(checker)?;
 
         Ok(check::Type::unit())
     }

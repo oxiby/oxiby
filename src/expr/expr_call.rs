@@ -3,7 +3,7 @@ use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 use itertools::{EitherOrBoth, Itertools};
 
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::{Expr, ExprIdent};
@@ -154,7 +154,6 @@ impl Noun {
 
 pub fn infer_function<'a>(
     checker: &mut Checker,
-    context: &mut Context,
     function: &check::Function,
     call_args: impl Iterator<Item = &'a Expr>,
     span: SimpleSpan,
@@ -163,7 +162,7 @@ pub fn infer_function<'a>(
     for pair in function.positional_params.iter().zip_longest(call_args) {
         match pair {
             EitherOrBoth::Both(ty, expr) => {
-                let expr_ty = expr.infer(checker, context)?;
+                let expr_ty = expr.infer(checker)?;
 
                 if let check::Type::Variable(ty_var) = ty {
                     return Ok(checker.substitute(&function.return_type.clone(), ty_var, &expr_ty));
@@ -193,7 +192,7 @@ pub fn infer_function<'a>(
                     .finish());
             }
             EitherOrBoth::Right(expr) => {
-                let expr_ty = expr.infer(checker, context)?;
+                let expr_ty = expr.infer(checker)?;
 
                 return Err(Error::build("Extra argument")
                     .with_detail(
@@ -262,15 +261,14 @@ impl WriteRuby for ExprCall {
 }
 
 impl Infer for ExprCall {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
         let name = self.name.as_str();
 
-        if let Some(ty) = context.get(name) {
+        if let Some(ty) = checker.get_contextual(name) {
             match ty {
                 check::Type::Fn(function) => {
                     return infer_function(
                         checker,
-                        context,
                         &function,
                         self.positional_args.iter(),
                         self.span,
@@ -291,46 +289,62 @@ impl Infer for ExprCall {
             }
         }
 
-        let (ty, members) = if let Some((ty, members)) = checker.get_type_constructor(name) {
-            (ty.clone(), members.clone())
+        let (ty, maybe_members) = if let Some((ty, members)) = checker.get_type_constructor(name) {
+            (ty.clone(), Some(members.clone()))
+        } else if let Some(ty) = checker.get_value_constructor(name) {
+            (ty.clone(), None)
         } else {
-            panic!("TODO: Couldn't infer ExprCall. Unknown type constructor: {name}")
+            return Err(Error::build("Unknown function")
+                .with_detail(
+                    &format!("Cannot find function `{name}` in this scope."),
+                    self.name.span(),
+                )
+                .finish());
         };
 
-        if let Some(tuple_constructor_ty) = members.value_constructors.get(name) {
-            let check::Type::Fn(function) = tuple_constructor_ty else {
+        let function = if let Some(members) = maybe_members {
+            if let Some(tuple_constructor_ty) = members.get_value_constructor(name) {
+                let check::Type::Fn(function) = tuple_constructor_ty else {
+                    panic!("TODO: Tuple constructor wasn't a function.");
+                };
+
+                function.clone()
+            } else {
+                return Err(Error::build("Invalid struct literal")
+                    .with_detail(
+                        &format!(
+                            "Struct `{ty}` is not a tuple struct and cannot be constructed with \
+                             the syntax `{ty}(...)`."
+                        ),
+                        self.span,
+                    )
+                    .with_help(
+                        &(if matches!(ty, check::Type::RecordStruct(_, _)) {
+                            format!("Try using record struct syntax: `{ty} {{ ... }}`")
+                        } else {
+                            format!(
+                                "Try using unit struct syntax by omitting the parenthesized \
+                                 arguments: `{ty}`"
+                            )
+                        }),
+                    )
+                    .finish());
+            }
+        } else {
+            let check::Type::Fn(function) = ty else {
                 panic!("TODO: Tuple constructor wasn't a function.");
             };
 
-            infer_function(
-                checker,
-                context,
-                function,
-                self.positional_args.iter(),
-                self.span,
-                Noun::Struct,
-            )
-        } else {
-            Err(Error::build("Invalid struct literal")
-                .with_detail(
-                    &format!(
-                        "Struct `{ty}` is not a tuple struct and cannot be constructed with the \
-                         syntax `{ty}(...)`."
-                    ),
-                    self.span,
-                )
-                .with_help(
-                    &(if matches!(ty, check::Type::RecordStruct(_, _)) {
-                        format!("Try using record struct syntax: `{ty} {{ ... }}`")
-                    } else {
-                        format!(
-                            "Try using unit struct syntax by omitting the parenthesized \
-                             arguments: `{ty}`"
-                        )
-                    }),
-                )
-                .finish())
-        }
+            function
+        };
+
+        infer_function(
+            checker,
+            &function,
+            self.positional_args.iter(),
+            self.span,
+            Noun::Struct,
+        )
     }
 }
 
@@ -345,6 +359,13 @@ impl CallIdent {
         match self {
             Self::Expr(ident) => ident.as_str(),
             Self::Type(ident) => ident.as_str(),
+        }
+    }
+
+    pub fn span(&self) -> SimpleSpan {
+        match self {
+            Self::Expr(expr_ident) => expr_ident.span,
+            Self::Type(type_ident) => type_ident.span,
         }
     }
 }

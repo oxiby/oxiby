@@ -108,7 +108,7 @@ impl AssociatedType {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct TypeIdent {
     ident: String,
-    span: SimpleSpan,
+    pub(crate) span: SimpleSpan,
 }
 
 impl TypeIdent {

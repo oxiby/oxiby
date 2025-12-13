@@ -2,7 +2,7 @@ use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::{Expr, ExprIdent, Noun, check_records, infer_function};
@@ -102,7 +102,7 @@ impl WriteRuby for ExprEnum {
 }
 
 impl Infer for ExprEnum {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
         let name = self.ty.as_str();
 
         let (ty, members) = match checker.get_type_constructor(name) {
@@ -117,7 +117,7 @@ impl Infer for ExprEnum {
 
         let variant_name = self.variant.as_str();
 
-        let Some(variant_ty) = members.value_constructors.get(variant_name) else {
+        let Some(variant_ty) = members.get_value_constructor(variant_name) else {
             return Err(Error::build("Unknown variant")
                 .with_detail(
                     &format!("Enum `{name}` has no `{variant_name}` variant."),
@@ -125,12 +125,7 @@ impl Infer for ExprEnum {
                 )
                 .with_help(&format!(
                     "`{name}` has the following variants: {}.",
-                    members
-                        .value_constructors
-                        .keys()
-                        .map(|key| format!("`{key}`"))
-                        .collect::<Vec<_>>()
-                        .join(", ")
+                    members.value_constructor_names().join(", ")
                 ))
                 .finish());
         };
@@ -148,7 +143,7 @@ impl Infer for ExprEnum {
                         )
                         .with_help(
                             &(if let Some(check::Type::Fn(_)) =
-                                members.value_constructors.get(variant_name)
+                                members.get_value_constructor(variant_name)
                             {
                                 format!("Try using tuple variant syntax: `{variant_name}(...)`")
                             } else {
@@ -185,14 +180,7 @@ impl Infer for ExprEnum {
                         .finish());
                 };
 
-                infer_function(
-                    checker,
-                    context,
-                    function,
-                    fields.iter(),
-                    self.span,
-                    Noun::Variant,
-                )?;
+                infer_function(checker, function, fields.iter(), self.span, Noun::Variant)?;
             }
             EnumConstructor::Struct(records) => {
                 let check::Type::RecordStruct(_variant_name_ty, fields) = variant_ty else {
@@ -206,7 +194,7 @@ impl Infer for ExprEnum {
                         )
                         .with_help(
                             &(if let Some(check::Type::Fn(_)) =
-                                members.value_constructors.get(variant_name)
+                                members.get_value_constructor(variant_name)
                             {
                                 format!("Try using tuple variant syntax: `{variant_name}(...)`")
                             } else {
@@ -221,7 +209,6 @@ impl Infer for ExprEnum {
 
                 check_records(
                     checker,
-                    context,
                     variant_name,
                     fields.iter(),
                     records.iter(),

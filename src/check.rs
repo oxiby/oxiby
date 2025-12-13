@@ -1,64 +1,16 @@
 #![allow(dead_code)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 
 use chumsky::span::{SimpleSpan, Span};
 
 use crate::error::Error;
-use crate::item::{Item, ItemFn, Variant};
+use crate::item::{ImportedIdent, Item, ItemFn, Variant};
+use crate::module::{Module, ModulePath};
 
 pub trait Infer {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<Type, Error>;
-}
-
-#[derive(Debug, Clone)]
-pub struct Context(Vec<Entry>);
-
-impl Context {
-    pub fn get(&self, name: &str) -> Option<Type> {
-        for entry in self.0.iter().rev() {
-            if let Entry::TermVar(var, ty) = entry
-                && var == name
-            {
-                return Some(ty.clone());
-            }
-        }
-
-        None
-    }
-
-    pub fn find(&self, name: &str, span: SimpleSpan) -> Result<Type, Error> {
-        self.get(name).ok_or_else(|| {
-            Error::build("Unknown binding")
-                .with_detail(
-                    &format!("Cannot find binding `{name}` in this scope."),
-                    span,
-                )
-                .finish()
-        })
-    }
-
-    pub fn push_term_var<S>(&mut self, name: S, ty: Type)
-    where
-        S: Into<String>,
-    {
-        self.0.push(Entry::TermVar(name.into(), ty));
-    }
-
-    pub fn push_scope(&mut self) {
-        self.0.push(Entry::Scope);
-    }
-
-    pub fn pop_scope(&mut self) {
-        loop {
-            if let Some(entry) = self.0.pop()
-                && matches!(entry, Entry::Scope)
-            {
-                break;
-            }
-        }
-    }
+    fn infer(&self, checker: &mut Checker) -> Result<Type, Error>;
 }
 
 #[derive(Debug, Clone)]
@@ -79,6 +31,12 @@ pub enum Type {
     Tuple(Vec<Type>),
     RecordStruct(Box<Type>, Vec<(String, Type)>),
     Fn(Function),
+    Import {
+        module_name: String,
+        import_name: String,
+        variant: Option<String>,
+        rename: Option<String>,
+    },
 }
 
 impl Type {
@@ -124,6 +82,24 @@ impl Type {
             Self::Variable(variable) => variable.clone(),
             Self::Tuple(_) => "<tuple name placeholder>".to_string(),
             Self::Fn(_) => "<function name placeholder>".to_string(),
+            Self::Import {
+                module_name,
+                import_name,
+                variant,
+                rename,
+            } => format!(
+                "{module_name} {import_name}{}{}",
+                if let Some(variant) = variant {
+                    format!(".{variant}")
+                } else {
+                    String::new()
+                },
+                if let Some(rename) = rename {
+                    format!(" -> {rename}")
+                } else {
+                    String::new()
+                },
+            ),
         }
     }
 
@@ -136,6 +112,85 @@ impl Type {
             Self::Variable(variable) => variable.clone(),
             Self::Tuple(_) => "<tuple name placeholder>".to_string(),
             Self::Fn(_) => "<function name placeholder>".to_string(),
+            Self::Import {
+                module_name,
+                import_name,
+                variant,
+                rename,
+            } => format!(
+                "{module_name} {import_name}{}{}",
+                if let Some(variant) = variant {
+                    format!(".{variant}")
+                } else {
+                    String::new()
+                },
+                if let Some(rename) = rename {
+                    format!(" -> {rename}")
+                } else {
+                    String::new()
+                },
+            ),
+        }
+    }
+
+    pub fn import<M, N>(module_name: M, import_name: N) -> Self
+    where
+        M: Into<String>,
+        N: Into<String>,
+    {
+        Self::Import {
+            module_name: module_name.into(),
+            import_name: import_name.into(),
+            variant: None,
+            rename: None,
+        }
+    }
+
+    pub fn import_renamed<M, N, R>(module_name: M, import_name: N, rename: R) -> Self
+    where
+        M: Into<String>,
+        N: Into<String>,
+        R: Into<String>,
+    {
+        Self::Import {
+            module_name: module_name.into(),
+            import_name: import_name.into(),
+            variant: None,
+            rename: Some(rename.into()),
+        }
+    }
+
+    pub fn import_variant<M, N, V>(module_name: M, import_name: N, variant: V) -> Self
+    where
+        M: Into<String>,
+        N: Into<String>,
+        V: Into<String>,
+    {
+        Self::Import {
+            module_name: module_name.into(),
+            import_name: import_name.into(),
+            variant: Some(variant.into()),
+            rename: None,
+        }
+    }
+
+    pub fn import_variant_renamed<M, N, V, R>(
+        module_name: M,
+        import_name: N,
+        variant: V,
+        rename: R,
+    ) -> Self
+    where
+        M: Into<String>,
+        N: Into<String>,
+        V: Into<String>,
+        R: Into<String>,
+    {
+        Self::Import {
+            module_name: module_name.into(),
+            import_name: import_name.into(),
+            variant: Some(variant.into()),
+            rename: Some(rename.into()),
         }
     }
 
@@ -206,6 +261,24 @@ impl Display for Type {
                 Some(name) => &format!("<function \"{name}\">"),
                 None => "<function>",
             },
+            Self::Import {
+                module_name,
+                import_name,
+                variant,
+                rename,
+            } => &format!(
+                "<import module=\"{module_name}\" import=\"{import_name}\"{}{}>",
+                if let Some(variant) = variant {
+                    format!(" variant=\"{variant}\"")
+                } else {
+                    String::new()
+                },
+                if let Some(rename) = rename {
+                    format!(" rename=\"{rename}\"")
+                } else {
+                    String::new()
+                },
+            ),
         };
 
         write!(f, "{s}")
@@ -363,8 +436,8 @@ impl Function {
 
 #[derive(Clone, Debug)]
 pub struct TypeMembers {
-    pub(crate) value_constructors: HashMap<String, Type>,
-    pub(crate) functions: HashMap<String, Type>,
+    value_constructors: HashMap<String, Type>,
+    functions: HashMap<String, Type>,
 }
 
 impl TypeMembers {
@@ -373,6 +446,29 @@ impl TypeMembers {
             value_constructors: HashMap::new(),
             functions: HashMap::new(),
         }
+    }
+
+    pub fn has_value_constructors(&self) -> bool {
+        self.value_constructors.is_empty()
+    }
+
+    pub fn has_value_constructor(&self, name: &str) -> bool {
+        self.value_constructors.contains_key(name)
+    }
+
+    pub fn get_value_constructor(&self, name: &str) -> Option<&Type> {
+        self.value_constructors.get(name)
+    }
+
+    pub fn value_constructor_names(&self) -> Vec<String> {
+        self.value_constructors
+            .keys()
+            .map(|key| format!("`{key}`"))
+            .collect::<Vec<_>>()
+    }
+
+    pub fn get_function(&self, name: &str) -> Option<&Type> {
+        self.functions.get(name)
     }
 
     fn substitute(&self, variable: &str, replacement: &Type) -> Self {
@@ -406,16 +502,21 @@ impl TypeMembers {
     }
 }
 
-#[derive(Debug)]
-pub struct Module {
-    type_constructors: HashMap<String, (Type, TypeMembers)>,
-    variables: HashMap<String, Type>,
+#[derive(Clone, Debug)]
+pub struct ModuleTypes {
+    module: Module,
+    is_entry_module: bool,
+    pub type_constructors: HashMap<String, (Type, TypeMembers)>,
+    pub value_constructors: HashMap<String, Type>,
+    pub functions: HashMap<String, Type>,
 }
 
-impl Module {
-    pub fn new() -> Self {
+impl ModuleTypes {
+    pub fn new(module: Module) -> Self {
+        let is_entry_module = module.is_entry_module();
         let mut type_constructors = HashMap::new();
-        let mut variables = HashMap::new();
+        let mut value_constructors = HashMap::new();
+        let mut functions = HashMap::new();
 
         type_constructors.insert("Boolean".to_owned(), (Type::boolean(), TypeMembers::new()));
         type_constructors.insert("Float".to_owned(), (Type::float(), TypeMembers::new()));
@@ -426,19 +527,48 @@ impl Module {
         let list_ty = Type::list();
         type_constructors.insert(list_ty.base_name(), (list_ty, TypeMembers::new()));
 
-        variables.insert(
-            "print_line".to_owned(),
-            Type::Fn(Function::r#static(
-                "print_line".to_owned(),
-                vec![Type::variable("s")],
-                vec![],
-                Type::unit(),
-            )),
-        );
+        if !module.is_std() {
+            functions.insert(
+                "print_line".to_string(),
+                Type::import("std.io", "print_line"),
+            );
+            functions.insert("print".to_string(), Type::import("std.io", "print"));
+            type_constructors.insert(
+                "List".to_string(),
+                (Type::import("std.list", "List"), TypeMembers::new()),
+            );
+            type_constructors.insert(
+                "Option".to_string(),
+                (Type::import("std.option", "Option"), TypeMembers::new()),
+            );
+            value_constructors.insert(
+                "Some".to_string(),
+                Type::import_variant("std.option", "Option", "Some"),
+            );
+            value_constructors.insert(
+                "None".to_string(),
+                Type::import_variant("std.option", "Option", "None"),
+            );
+            type_constructors.insert(
+                "Result".to_string(),
+                (Type::import("std.result", "Result"), TypeMembers::new()),
+            );
+            value_constructors.insert(
+                "Ok".to_string(),
+                Type::import_variant("std.result", "Result", "Ok"),
+            );
+            value_constructors.insert(
+                "Err".to_string(),
+                Type::import_variant("std.result", "Result", "Err"),
+            );
+        }
 
         Self {
+            module,
+            is_entry_module,
             type_constructors,
-            variables,
+            value_constructors,
+            functions,
         }
     }
 
@@ -453,41 +583,173 @@ impl Module {
         self.type_constructors.insert(name.to_string(), contents);
     }
 
-    pub fn variables(&self) -> impl Iterator<Item = (&String, &Type)> {
-        self.variables.iter()
+    pub fn get_value_constructor(&self, name: &str) -> Option<&Type> {
+        self.value_constructors.get(name)
     }
 
-    pub fn add_variable<N>(&mut self, name: &N, ty: Type)
+    pub fn add_value_constructor<N>(&mut self, name: &N, ty: Type)
     where
         N: ToString,
     {
-        self.variables.insert(name.to_string(), ty);
+        self.value_constructors.insert(name.to_string(), ty);
+    }
+
+    pub fn functions(&self) -> impl Iterator<Item = (&String, &Type)> {
+        self.functions.iter()
+    }
+
+    pub fn add_function<N>(&mut self, name: &N, ty: Type)
+    where
+        N: ToString,
+    {
+        self.functions.insert(name.to_string(), ty);
+    }
+
+    pub fn items(&self) -> &[Item] {
+        self.module.items()
+    }
+
+    pub fn into_module(self) -> Module {
+        self.module
     }
 }
 
 #[derive(Debug)]
 pub struct Checker {
     counter: usize,
-    current_module: usize,
-    module_map: HashMap<String, usize>,
-    modules: Vec<Module>,
+    context: Vec<Entry>,
+    current_module: Option<String>,
+    modules: HashMap<String, ModuleTypes>,
 }
 
 impl Checker {
-    pub fn new() -> Self {
+    pub fn new(modules: HashMap<String, Module>) -> Self {
         Self {
             counter: 0,
-            current_module: 0,
-            module_map: HashMap::new(),
-            modules: vec![Module::new()],
+            context: Vec::new(),
+            current_module: None,
+            modules: modules
+                .into_iter()
+                .map(|(module_path, module)| (module_path, ModuleTypes::new(module)))
+                .collect(),
         }
+    }
+
+    pub fn get_contextual(&self, name: &str) -> Option<Type> {
+        for entry in self.context.iter().rev() {
+            if let Entry::TermVar(var, ty) = entry
+                && var == name
+            {
+                match ty {
+                    Type::Import {
+                        module_name,
+                        import_name,
+                        variant: _,
+                        rename: _,
+                    } => {
+                        let module = self.modules.get(module_name).unwrap();
+                        return Some(module.functions.get(import_name).unwrap().clone());
+                    }
+                    ty => return Some(ty.clone()),
+                }
+            }
+        }
+
+        None
+    }
+
+    pub fn find_contextual(&self, name: &str, span: SimpleSpan) -> Result<Type, Error> {
+        self.get_contextual(name).ok_or_else(|| {
+            Error::build("Unknown binding")
+                .with_detail(
+                    &format!("Cannot find binding `{name}` in this scope."),
+                    span,
+                )
+                .finish()
+        })
+    }
+
+    pub fn push_term_var<S>(&mut self, name: S, ty: Type)
+    where
+        S: Into<String>,
+    {
+        self.context.push(Entry::TermVar(name.into(), ty));
+    }
+
+    pub fn push_scope(&mut self) {
+        self.context.push(Entry::Scope);
+    }
+
+    pub fn pop_scope(&mut self) {
+        loop {
+            if let Some(entry) = self.context.pop()
+                && matches!(entry, Entry::Scope)
+            {
+                break;
+            }
+        }
+    }
+
+    pub fn into_modules(self) -> HashMap<ModulePath, Module> {
+        self.modules
+            .into_iter()
+            .map(|(module_path_string, module_type)| {
+                // Since the ModulePath was converted to a string for use as a hash map key during
+                // type checking, it loses the information about whether or not it was the entry
+                // module, but the module itself has retained this information, so when we recreate
+                // the ModulePath from its string representation, we copy this information back.
+                let mut module_path: ModulePath = module_path_string.as_str().into();
+                module_path.set_is_entry_module(module_type.is_entry_module);
+
+                (module_path, module_type.into_module())
+            })
+            .collect()
     }
 
     pub fn get_type_constructor(&self, name: &str) -> Option<(&Type, &TypeMembers)> {
         self.current_module()
-            .type_constructors
-            .get(name)
-            .map(|(ty, mem)| (ty, mem))
+            .get_type_constructor(name)
+            .and_then(|(ty, mem)| {
+                if let Type::Import {
+                    module_name,
+                    import_name,
+                    variant: _,
+                    rename: _,
+                } = ty
+                {
+                    self.modules[module_name].get_type_constructor(import_name)
+                } else {
+                    Some((ty, mem))
+                }
+            })
+    }
+
+    pub fn get_value_constructor(&self, name: &str) -> Option<&Type> {
+        self.current_module()
+            .get_value_constructor(name)
+            .and_then(|ty| {
+                if let Type::Import {
+                    module_name,
+                    import_name,
+                    variant,
+                    rename: _,
+                } = ty
+                {
+                    if let Some(variant) = variant {
+                        if let Some((_ty, members)) =
+                            self.modules[module_name].get_type_constructor(import_name)
+                        {
+                            members.get_value_constructor(variant)
+                        } else {
+                            None
+                        }
+                    } else {
+                        self.modules[module_name].get_value_constructor(import_name)
+                    }
+                } else {
+                    Some(ty)
+                }
+            })
     }
 
     pub fn create_type_var(&mut self) -> TypeVar {
@@ -516,21 +778,124 @@ impl Checker {
         new_ty
     }
 
-    fn current_module(&self) -> &Module {
-        &self.modules[self.current_module]
+    pub fn current_module(&self) -> &ModuleTypes {
+        &self.modules[self.current_module.as_ref().unwrap()]
     }
 
-    fn current_module_mut(&mut self) -> &mut Module {
-        &mut self.modules[self.current_module]
+    fn current_module_mut(&mut self) -> &mut ModuleTypes {
+        self.modules
+            .get_mut(
+                self.current_module
+                    .as_ref()
+                    .expect("current_module should be set to call current_module_mut"),
+            )
+            .expect("current_module should always be a path that's in the modules map")
     }
 
-    pub fn check(&mut self, items: Vec<Item>) -> Result<(), Error> {
-        // First pass: Collect declarations.
-        for item in &items {
-            if let Item::Fn(item_fn) = item {
+    pub fn check(&mut self) -> Result<(), Error> {
+        let entry_module_path = match self
+            .modules
+            .iter()
+            .find(|(_, module)| module.is_entry_module)
+        {
+            Some((module_path, _module)) => module_path.clone(),
+            None => return Err(Error::build("No entry module found.").finish()),
+        };
+
+        self.current_module = Some(entry_module_path.clone());
+
+        let mut seen_modules = HashSet::new();
+
+        self.collect_declarations(
+            self.current_module().items().to_vec().as_slice(),
+            &mut seen_modules,
+        )?;
+
+        self.check_one(self.current_module().items().to_vec())
+    }
+
+    pub fn collect_declarations(
+        &mut self,
+        items: &[Item],
+        seen_modules: &mut HashSet<ModulePath>,
+    ) -> Result<(), Error> {
+        let mut imported_modules: HashSet<ModulePath> = HashSet::new();
+        imported_modules.insert("std.io".into());
+        imported_modules.insert("std.list".into());
+        imported_modules.insert("std.option".into());
+        imported_modules.insert("std.result".into());
+
+        for item in items {
+            if let Item::Use(item_use) = item {
+                let module_path: ModulePath = item_use.path.clone().into();
+                let module_path_string = module_path.to_string();
+
+                imported_modules.insert(module_path);
+
+                for import in &item_use.idents {
+                    match import {
+                        ImportedIdent::ExprIdent { ident, rename } => match rename {
+                            Some(rename) => {
+                                self.current_module_mut().add_function(
+                                    rename,
+                                    Type::import_renamed(
+                                        &module_path_string,
+                                        ident.to_string(),
+                                        rename.to_string(),
+                                    ),
+                                );
+                            }
+                            None => {
+                                self.current_module_mut().add_function(
+                                    ident,
+                                    Type::import(&module_path_string, ident.to_string()),
+                                );
+                            }
+                        },
+                        ImportedIdent::TypeIdent {
+                            ident,
+                            variant,
+                            rename,
+                        } => {
+                            if let Some(variant) = variant {
+                                match rename {
+                                    Some(rename) => {
+                                        self.current_module_mut().add_value_constructor(
+                                            rename,
+                                            Type::import_variant_renamed(
+                                                &module_path_string,
+                                                ident.to_string(),
+                                                variant.to_string(),
+                                                rename.to_string(),
+                                            ),
+                                        );
+                                    }
+                                    None => {
+                                        self.current_module_mut().add_value_constructor(
+                                            &variant,
+                                            Type::import_variant(
+                                                &module_path_string,
+                                                ident.to_string(),
+                                                variant.to_string(),
+                                            ),
+                                        );
+                                    }
+                                }
+                            } else {
+                                let name = rename.as_ref().unwrap_or(ident).to_string();
+
+                                self.current_module_mut().add_type_constructor(
+                                    &name,
+                                    (Type::import(&module_path_string, &name), TypeMembers::new()),
+                                );
+                            }
+                        }
+                    }
+                }
+            } else if let Item::Fn(item_fn) = item {
                 let (name, function) = collect_fn(item_fn)?;
 
-                self.current_module_mut().add_variable(&name, function);
+                self.current_module_mut().add_function(&name, function);
             } else if let Item::Struct(item_struct) = item {
                 let mut ty: Type = item_struct.ty.clone().into();
 
@@ -584,21 +949,17 @@ impl Checker {
             } else if let Item::Enum(item_enum) = item {
                 let ty: Type = item_enum.ty.clone().into();
 
-                let name = match ty {
-                    Type::Primitive(primitive_type) => {
-                        return Err(Error::build("Duplicate type definition")
-                            .with_detail(
-                                &format!(
-                                    "This type name conflicts with the primitive type \
-                                     `{primitive_type}`."
-                                ),
-                                item_enum.ty.span().unwrap_or((0..0).into()),
-                            )
-                            .finish());
-                    }
-                    Type::Constructor(ref name) => name.clone(),
-                    _ => todo!("Type {ty} is not yet supported by the type checker"),
-                };
+                if let Type::Primitive(primitive_type) = ty {
+                    return Err(Error::build("Duplicate type definition")
+                        .with_detail(
+                            &format!(
+                                "This type name conflicts with the primitive type \
+                                 `{primitive_type}`."
+                            ),
+                            item_enum.ty.span().unwrap_or((0..0).into()),
+                        )
+                        .finish());
+                }
 
                 let mut members = TypeMembers::new();
 
@@ -642,19 +1003,45 @@ impl Checker {
                 }
 
                 self.current_module_mut()
-                    .add_type_constructor(&name, (ty, members));
+                    .add_type_constructor(&ty.base_name(), (ty, members));
             }
         }
 
-        // Second pass: Check function bodies.
+        for module_path in imported_modules {
+            // Don't try to collect the same module twice.
+            if seen_modules.contains(&module_path) {
+                continue;
+            }
+
+            // Remember which module we're in now before switching to the next one.
+            let current_module = self.current_module.take();
+            let next_module = module_path.to_string();
+
+            // Switch to the next module.
+            self.current_module = Some(next_module);
+
+            // Mark the one we're switching to as seen so we don't collect it twice.
+            seen_modules.insert(module_path.clone());
+
+            // Collect the next module.
+            let items = self.current_module_mut().items().to_vec();
+            self.collect_declarations(&items, seen_modules)?;
+
+            // Switch back to the original module.
+            self.current_module = current_module;
+        }
+
+        Ok(())
+    }
+
+    pub fn check_one(&mut self, items: Vec<Item>) -> Result<(), Error> {
         for item in items {
             if let Item::Fn(item_fn) = item {
-                let mut context = Context(
-                    self.current_module()
-                        .variables()
-                        .map(|(name, ty)| Entry::TermVar(name.clone(), ty.clone()))
-                        .collect(),
-                );
+                self.context = self
+                    .current_module()
+                    .functions()
+                    .map(|(name, ty)| Entry::TermVar(name.clone(), ty.clone()))
+                    .collect();
 
                 for param in item_fn
                     .signature
@@ -662,10 +1049,10 @@ impl Checker {
                     .iter()
                     .chain(item_fn.signature.keyword_params.iter())
                 {
-                    context.push_term_var(param.ident.to_string(), param.ty.clone().into());
+                    self.push_term_var(param.ident.to_string(), param.ty.clone().into());
                 }
 
-                item_fn.infer(self, &mut context)?;
+                item_fn.infer(self)?;
             }
         }
 

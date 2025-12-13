@@ -2,7 +2,7 @@ use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::Expr;
@@ -82,13 +82,13 @@ impl WriteRuby for ExprLet {
 }
 
 impl Infer for ExprLet {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
         let mut inferred = check::Type::unit();
 
         match &self.pattern {
             Pattern::Ident(pattern_ident) => {
-                inferred = self.body.infer(checker, context)?;
-                context.push_term_var(pattern_ident.ident.to_string(), inferred.clone());
+                inferred = self.body.infer(checker)?;
+                checker.push_term_var(pattern_ident.ident.to_string(), inferred.clone());
             }
             Pattern::Literal(_) | Pattern::Wildcard => (),
             pattern => todo!(

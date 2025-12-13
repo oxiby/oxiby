@@ -4,7 +4,7 @@ use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
 use crate::ast::Operator;
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::token::Token;
@@ -527,7 +527,7 @@ impl WriteRuby for Expr {
 }
 
 impl Infer for Expr {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
         let ty = match self {
             // Literals
             Self::Boolean(..) => check::Type::boolean(),
@@ -537,23 +537,23 @@ impl Infer for Expr {
             Self::Range(..) => check::Type::range(),
 
             // Compound primitives
-            Self::Map(expr_map) => expr_map.infer(checker, context)?,
-            Self::List(expr_list) => expr_list.infer(checker, context)?,
-            Self::Tuple(expr_tuple) => expr_tuple.infer(checker, context)?,
+            Self::Map(expr_map) => expr_map.infer(checker)?,
+            Self::List(expr_list) => expr_list.infer(checker)?,
+            Self::Tuple(expr_tuple) => expr_tuple.infer(checker)?,
 
             // Data structures
-            Self::Struct(expr_struct) => expr_struct.infer(checker, context)?,
-            Self::Enum(expr_enum) => expr_enum.infer(checker, context)?,
+            Self::Struct(expr_struct) => expr_struct.infer(checker)?,
+            Self::Enum(expr_enum) => expr_enum.infer(checker)?,
 
             // Identifiers
-            Self::ExprIdent(ident) => context.find(ident.as_str(), self.span())?,
+            Self::ExprIdent(ident) => checker.find_contextual(ident.as_str(), self.span())?,
             Self::TypeIdent(expr_type_ident) => {
                 let name = expr_type_ident.as_str();
 
-                match checker.get_type_constructor(name) {
-                    Some((ty, members)) => match ty {
-                        check::Type::Constructor(_) if members.value_constructors.is_empty() => {
-                            ty.clone()
+                if let Some((ty, members)) = checker.get_type_constructor(name) {
+                    match ty {
+                        check::Type::Constructor(_) if members.has_value_constructors() => {
+                            return Ok(ty.clone());
                         }
                         _ => {
                             return Err(Error::build("Invalid struct literal")
@@ -565,7 +565,7 @@ impl Infer for Expr {
                                     expr_type_ident.span,
                                 )
                                 .with_help(
-                                    &(if members.value_constructors.contains_key(name) {
+                                    &(if members.has_value_constructor(name) {
                                         format!("Try using tuple struct syntax: `{ty}(...)`")
                                     } else {
                                         format!("Try using record struct syntax: `{ty} {{ ... }}`")
@@ -573,45 +573,38 @@ impl Infer for Expr {
                                 )
                                 .finish());
                         }
-                    },
-                    None => {
-                        return Err(Error::build("Unknown type")
-                            .with_detail(
-                                &format!("Type `{name}` is not in scope."),
-                                expr_type_ident.span,
-                            )
-                            .with_help("You might need to import this type from another module.")
-                            .finish());
                     }
+                } else if let Some(ty) = checker.get_value_constructor(name) {
+                    return Ok(ty.clone());
                 }
+
+                return Err(Error::build("TODO: When is this error triggered?").finish());
             }
 
             // Member access
-            Self::Field(expr_field) => expr_field.infer(checker, context)?,
+            Self::Field(expr_field) => expr_field.infer(checker)?,
 
             // Calls
-            Self::Call(expr_call) => expr_call.infer(checker, context)?,
-            Self::Index(expr_index) => expr_index.infer(checker, context)?,
+            Self::Call(expr_call) => expr_call.infer(checker)?,
+            Self::Index(expr_index) => expr_index.infer(checker)?,
 
             // Control flow
-            Self::Break(expr_break) => expr_break.infer(checker, context)?,
-            Self::Conditional(expr_conditional) => expr_conditional.infer(checker, context)?,
+            Self::Break(expr_break) => expr_break.infer(checker)?,
+            Self::Conditional(expr_conditional) => expr_conditional.infer(checker)?,
             Self::Continue(..) => check::Type::unit(),
-            Self::ForLoop(expr_for_loop) => expr_for_loop.infer(checker, context)?,
-            Self::Loop(expr_loop) => expr_loop.infer(checker, context)?,
-            Self::Return(expr_return) => expr_return.infer(checker, context)?,
-            Self::WhileLoop(expr_while) => expr_while.infer(checker, context)?,
+            Self::ForLoop(expr_for_loop) => expr_for_loop.infer(checker)?,
+            Self::Loop(expr_loop) => expr_loop.infer(checker)?,
+            Self::Return(expr_return) => expr_return.infer(checker)?,
+            Self::WhileLoop(expr_while) => expr_while.infer(checker)?,
 
             // Patterns
-            Self::Let(expr_let) => expr_let.infer(checker, context)?,
+            Self::Let(expr_let) => expr_let.infer(checker)?,
 
             // Misc.
-            Self::Block(expr_block) => expr_block.infer(checker, context)?,
-            Self::Unary(expr_unary) => expr_unary.infer(checker, context)?,
-            Self::Binary(expr_binary) => expr_binary.infer(checker, context)?,
-            Self::Parenthesized(expr_parenthesized) => {
-                expr_parenthesized.infer(checker, context)?
-            }
+            Self::Block(expr_block) => expr_block.infer(checker)?,
+            Self::Unary(expr_unary) => expr_unary.infer(checker)?,
+            Self::Binary(expr_binary) => expr_binary.infer(checker)?,
+            Self::Parenthesized(expr_parenthesized) => expr_parenthesized.infer(checker)?,
 
             _ => todo!("Type inference not yet implemented for expression {self:?}"),
         };

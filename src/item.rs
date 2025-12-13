@@ -10,7 +10,7 @@ pub use self::item_fn::ItemFn;
 pub use self::item_impl::ItemImpl;
 pub use self::item_struct::ItemStruct;
 pub use self::item_trait::ItemTrait;
-pub use self::item_use::{ImportKind, ItemUse};
+pub use self::item_use::{ImportKind, ImportedIdent, ItemUse};
 use crate::compiler::{Scope, WriteRuby};
 
 #[derive(Debug, Clone, PartialEq)]

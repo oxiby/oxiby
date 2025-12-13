@@ -1,14 +1,15 @@
 #![allow(unused_imports, dead_code, clippy::unused_self)]
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use chumsky::Parser;
 use chumsky::input::Input;
 use chumsky::span::SimpleSpan;
 
-use crate::import::{OxibyModulePath, RubyModuleConstants};
 use crate::item::{ImportKind, Item};
+use crate::module::{Module, ModulePath, RubyModuleConstants};
+use crate::stage::parse;
 use crate::token::Token;
 
 static STD_RB: [[&str; 2]; 5] = [
@@ -27,6 +28,29 @@ static STD_OB: [[&str; 2]; 6] = [
     ["option", include_str!("../lib/option.ob")],
     ["result", include_str!("../lib/result.ob")],
 ];
+
+pub fn std_modules() -> HashMap<String, Module> {
+    let mut modules = HashMap::new();
+
+    for [name, source] in STD_OB {
+        let module_path = [["std"], [name]].concat().as_slice().into();
+        let module = Module::new(
+            module_path,
+            parse(source, &PathBuf::new()).expect("std library should always parse"),
+        );
+
+        modules.insert(module.to_string(), module);
+    }
+
+    modules
+}
+
+pub fn std_src(module_name: &str) -> Option<&str> {
+    STD_OB
+        .iter()
+        .find(|std_ob| std_ob[0] == module_name)
+        .map(|std_ob| std_ob[1])
+}
 
 pub trait WriteRuby {
     fn write_ruby(&self, scope: &mut Scope);
@@ -56,16 +80,16 @@ where
 pub struct Scope {
     conditional_nesting: usize,
     items: Vec<ScopeItem>,
-    oxiby_module_path: OxibyModulePath,
+    module_path: ModulePath,
     imports: HashMap<String, (String, ImportKind)>,
 }
 
 impl Scope {
-    pub fn new(oxiby_module_path: OxibyModulePath) -> Self {
+    pub fn new(module_path: ModulePath) -> Self {
         Self {
             conditional_nesting: 0,
             items: Vec::new(),
-            oxiby_module_path,
+            module_path,
             imports: HashMap::new(),
         }
     }
@@ -74,7 +98,7 @@ impl Scope {
         Self {
             conditional_nesting: 0,
             items: Vec::new(),
-            oxiby_module_path: self.oxiby_module_path.clone(),
+            module_path: self.module_path.clone(),
             imports: self.imports.clone(),
         }
     }
@@ -197,7 +221,7 @@ impl Scope {
     }
 
     pub fn ruby_module_constants(&self) -> RubyModuleConstants {
-        self.oxiby_module_path.clone().into()
+        self.module_path.clone().into()
     }
 
     fn into_output(self, indent: usize) -> String {
@@ -304,9 +328,10 @@ where
 }
 
 #[must_use]
-pub fn compile_module(oxiby_module: OxibyModulePath, items: &[Item], is_std: bool) -> String {
-    let is_entry = oxiby_module.is_entry();
-    let mut scope = Scope::new(oxiby_module);
+pub fn compile_module(module_path: &ModulePath, items: &[Item]) -> String {
+    let is_entry = module_path.is_entry_module();
+    let is_std = module_path.is_std();
+    let mut scope = Scope::new(module_path.clone());
 
     scope.add_import("print_line", ("::Std::Io.print_line", ImportKind::Function));
     scope.add_import("print", ("::Std::Io.print", ImportKind::Function));
@@ -353,7 +378,7 @@ pub fn compile_std(build_dir: &Path) -> Result<(), Vec<String>> {
     }
 
     for [name, source] in STD_OB {
-        let output = compile_str(&["std", name], source, true)?;
+        let output = compile_str(&["std", name], source)?;
         let path = oxiby_dir.join(format!("{name}.rb"));
         std::fs::write(path, output).map_err(|err| vec![err.to_string()])?;
     }
@@ -361,12 +386,8 @@ pub fn compile_std(build_dir: &Path) -> Result<(), Vec<String>> {
     Ok(())
 }
 
-pub fn compile_str(
-    module_path: &[&str],
-    source: &str,
-    is_std: bool,
-) -> Result<String, Vec<String>> {
-    let oxiby_module_path: OxibyModulePath = module_path.into();
+pub fn compile_str(module_path: &[&str], source: &str) -> Result<String, Vec<String>> {
+    let module_path: ModulePath = module_path.into();
 
     let tokens = crate::token::lexer()
         .parse(source)
@@ -388,5 +409,5 @@ pub fn compile_str(
                 .collect::<Vec<String>>()
         })?;
 
-    Ok(compile_module(oxiby_module_path, &items, is_std))
+    Ok(compile_module(&module_path, &items))
 }

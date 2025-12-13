@@ -90,8 +90,6 @@ pub fn run() -> Result<(), CliError> {
             })?;
         }
         Some(("build", sub_matches)) => {
-            dbg!(matches.get_flag("no-check"));
-
             run_build(&Build {
                 stdout: sub_matches.get_flag("stdout"),
                 no_std: sub_matches.get_flag("no_std"),
@@ -340,9 +338,9 @@ fn arg_output() -> Arg {
 
 fn run_check(chk: &Check) -> Result<(), CliError> {
     let source = read_file(&chk.entry_file)?;
-    let mut modules = HashMap::new();
+    let modules = HashMap::new();
 
-    modules = check(&source, &chk.entry_file, chk.entry_file.parent(), modules)
+    let modules = check(&source, &chk.entry_file, chk.entry_file.parent(), modules)
         .map_err(CliError::Source)?;
 
     if chk.debug {
@@ -370,6 +368,12 @@ fn run_build(build: &Build) -> Result<(), CliError> {
             build.entry_file.parent(),
             modules,
         )
+        .map(|modules| {
+            modules
+                .into_iter()
+                .map(|(module_path, module)| (module_path, module.into_items()))
+                .collect()
+        })
         .map_err(CliError::Source)?;
     } else {
         parse_all(
@@ -383,7 +387,7 @@ fn run_build(build: &Build) -> Result<(), CliError> {
     }
 
     for (module_path, items) in modules {
-        let output = crate::compile_module(module_path.clone(), &items, false);
+        let output = crate::compile_module(&module_path, &items);
 
         if build.should_write_to_stdout() {
             println!("{output}");

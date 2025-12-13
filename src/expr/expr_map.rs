@@ -1,6 +1,6 @@
 use chumsky::span::SimpleSpan;
 
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::Expr;
@@ -28,12 +28,12 @@ impl WriteRuby for ExprMap {
 }
 
 impl Infer for ExprMap {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
         let (inferred_key, key_span, inferred_value, value_span) = match self.pairs.first() {
             Some((key, value)) => (
-                key.infer(checker, context)?,
+                key.infer(checker)?,
                 key.span(),
-                value.infer(checker, context)?,
+                value.infer(checker)?,
                 value.span(),
             ),
             None => {
@@ -46,7 +46,7 @@ impl Infer for ExprMap {
 
         for (key, value) in self.pairs.iter().skip(1) {
             let (next_inferred_key, next_inferred_value) =
-                (key.infer(checker, context)?, value.infer(checker, context)?);
+                (key.infer(checker)?, value.infer(checker)?);
 
             if inferred_key != next_inferred_key {
                 return Err(Error::type_mismatch()

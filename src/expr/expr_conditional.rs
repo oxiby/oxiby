@@ -3,7 +3,7 @@ use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
 use super::ExprBlock;
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::Expr;
@@ -80,8 +80,8 @@ impl WriteRuby for ExprConditional {
 }
 
 impl Infer for ExprConditional {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
-        let condition_type = self.condition.infer(checker, context)?;
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
+        let condition_type = self.condition.infer(checker)?;
 
         if condition_type != check::Type::boolean() {
             return Err(Error::type_mismatch()
@@ -92,16 +92,15 @@ impl Infer for ExprConditional {
                 .finish());
         }
 
-        let then_type = self.then_branch.infer(checker, context)?;
+        let then_type = self.then_branch.infer(checker)?;
 
         let maybe_else = match &self.else_branch {
             Some(ConditionalElseBranch::Block(expr_block)) => {
-                Some((expr_block.infer(checker, context)?, expr_block.span))
+                Some((expr_block.infer(checker)?, expr_block.span))
             }
-            Some(ConditionalElseBranch::Conditional(expr_conditional)) => Some((
-                expr_conditional.infer(checker, context)?,
-                expr_conditional.span,
-            )),
+            Some(ConditionalElseBranch::Conditional(expr_conditional)) => {
+                Some((expr_conditional.infer(checker)?, expr_conditional.span))
+            }
             None => None,
         };
 

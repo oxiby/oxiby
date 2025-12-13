@@ -5,7 +5,7 @@ use chumsky::prelude::*;
 
 use crate::compiler::{Scope, WriteRuby};
 use crate::expr::ExprIdent;
-use crate::import::{OxibyModulePath, RubyModuleConstants};
+use crate::module::{ModulePath, RubyModuleConstants};
 use crate::token::Token;
 use crate::types::TypeIdent;
 
@@ -106,8 +106,8 @@ impl ItemUse {
                 _ => unreachable!("idents always have at least one character"),
             };
 
-            let oxiby_module_path: OxibyModulePath = self.path.clone().into();
-            let ruby_module_constants: RubyModuleConstants = oxiby_module_path.into();
+            let module_path: ModulePath = self.path.clone().into();
+            let ruby_module_constants: RubyModuleConstants = module_path.into();
 
             scope.add_import(
                 alias.to_owned(),
@@ -144,12 +144,8 @@ impl ItemUse {
         self.file_path(None)
     }
 
-    pub fn module_path(&self) -> String {
-        self.path
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join(".")
+    pub fn module_path(&self) -> ModulePath {
+        self.path.clone().into()
     }
 }
 

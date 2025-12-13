@@ -2,7 +2,7 @@ use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 
 use crate::ast::Visibility;
-use crate::check::{self, Checker, Context, Infer};
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::{Expr, ExprIdent};
@@ -120,11 +120,11 @@ impl WriteRuby for ItemFn {
 }
 
 impl Infer for ItemFn {
-    fn infer(&self, checker: &mut Checker, context: &mut Context) -> Result<check::Type, Error> {
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
         let mut inferred = check::Type::unit();
 
         for expr in &self.body {
-            inferred = expr.infer(checker, context)?;
+            inferred = expr.infer(checker)?;
         }
 
         let declared = self
