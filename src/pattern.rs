@@ -357,9 +357,9 @@ pub struct CtorStructField {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchArm {
-    pattern: Pattern,
-    body: Expr,
-    span: SimpleSpan,
+    pub(crate) pattern: Pattern,
+    pub(crate) body: Expr,
+    pub(crate) span: SimpleSpan,
 }
 
 impl MatchArm {

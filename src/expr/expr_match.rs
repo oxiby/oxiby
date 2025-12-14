@@ -2,7 +2,9 @@ use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
+use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
+use crate::error::Error;
 use crate::expr::Expr;
 use crate::pattern::MatchArm;
 use crate::token::Token;
@@ -61,5 +63,41 @@ impl WriteRuby for ExprMatch {
         }
 
         scope.fragment("end");
+    }
+}
+
+impl Infer for ExprMatch {
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
+        // TODO: Ensure patterns are appropriate for the scrutinee.
+        self.expr.infer(checker)?;
+
+        let (inferred, span) = match self.arms.first() {
+            Some(arm) => (arm.body.infer(checker)?, arm.span),
+            None => {
+                return Err(Error::build("Invalid match")
+                    .with_detail("Match expressions must have at least one arm.", self.span)
+                    .finish());
+            }
+        };
+
+        for arm in self.arms.iter().skip(1) {
+            let next_inferred = arm.body.infer(checker)?;
+
+            if inferred != next_inferred {
+                return Err(Error::type_mismatch()
+                    .with_detail("All match arms must be of the same type.", self.span)
+                    .with_context(
+                        &format!("The first match arm is of type `{inferred}`..."),
+                        span,
+                    )
+                    .with_context(
+                        &format!("...but this match arm is of type `{next_inferred}`"),
+                        arm.span,
+                    )
+                    .finish());
+            }
+        }
+
+        Ok(inferred)
     }
 }

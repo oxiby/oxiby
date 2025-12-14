@@ -5,6 +5,6 @@ fn result_tuple() -> Result<(), (String, String)> {
 fn main() {
     match result_tuple() {
         Ok(_) -> print_line("ok"),
-        Err(_) -> print_link("err"),
+        Err(_) -> print_line("err"),
     }
 }

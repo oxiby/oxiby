@@ -599,6 +599,7 @@ impl Infer for Expr {
 
             // Patterns
             Self::Let(expr_let) => expr_let.infer(checker)?,
+            Self::Match(expr_match) => expr_match.infer(checker)?,
 
             // Misc.
             Self::Block(expr_block) => expr_block.infer(checker)?,
