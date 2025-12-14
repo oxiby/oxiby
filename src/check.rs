@@ -213,6 +213,36 @@ impl Type {
         matches!(self, Self::Tuple(types) if types.is_empty())
     }
 
+    pub fn is_subtype_of(&self, other: &Self) -> bool {
+        if self == other {
+            return true;
+        }
+
+        match (self, other) {
+            // Reflexive cases
+            (Self::Primitive(a), Self::Primitive(b)) if a == b => true,
+            (Self::Constructor(a), Self::Constructor(b)) if a == b => true,
+            (Self::Variable(a), Self::Variable(b)) if a == b => true,
+
+            // Generics
+            (Self::Generic(t, t_params), Self::Generic(u, u_params)) if t == u => {
+                for (t_param, u_param) in t_params.iter().zip(u_params.iter()) {
+                    if !t_param.is_subtype_of(u_param) {
+                        return false;
+                    }
+                }
+
+                true
+            }
+
+            // Any type is a subtype of an unconstrained type variable
+            (_, Self::Variable(_)) => true,
+
+            // Anything without an explicit rule above is not a subtype
+            _ => false,
+        }
+    }
+
     fn substitute(self, variable: &str, replacement: &Self) -> Self {
         let mut substituted = self.clone();
 

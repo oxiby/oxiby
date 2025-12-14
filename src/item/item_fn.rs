@@ -134,7 +134,7 @@ impl Infer for ItemFn {
             .map_or_else(check::Type::unit, Into::into);
 
         if (self.signature.associated_fn || self.signature.name.as_str() != "main")
-            && inferred != declared
+            && !declared.is_subtype_of(&inferred)
         {
             return Err(Error::type_mismatch()
                 .with_detail(
