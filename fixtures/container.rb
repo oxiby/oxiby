@@ -26,6 +26,8 @@ module Container
   def self.main
     contained_integer = Container.new(1)
     contained_string = Container.new("Oxiby")
+    ::Std::Io.print_line(contained_integer.__0)
+    ::Std::Io.print_line(contained_string.__0)
     ::Std::Io.print_line(contained_integer)
     ::Std::Io.print_line(contained_string)
   end

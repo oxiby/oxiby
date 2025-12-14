@@ -387,7 +387,9 @@ pub fn compile_std(build_dir: &Path) -> Result<(), Vec<String>> {
 }
 
 pub fn compile_str(module_path: &[&str], source: &str) -> Result<String, Vec<String>> {
-    let module_path: ModulePath = module_path.into();
+    let mut module_path: ModulePath = module_path.into();
+
+    module_path.set_is_entry_module(!module_path.is_std());
 
     let tokens = crate::token::lexer()
         .parse(source)

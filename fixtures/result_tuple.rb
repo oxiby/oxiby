@@ -12,7 +12,7 @@ module ResultTuple
     in ::Std::Result::Result::Ok
       ::Std::Io.print_line("ok")
     in ::Std::Result::Result::Err
-      print_link("err")
+      ::Std::Io.print_line("err")
     end
   end
 

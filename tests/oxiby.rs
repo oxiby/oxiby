@@ -10,7 +10,7 @@ fn fixture(name: &str) -> (String, String) {
 fn compile_eq(name: &str) {
     let (source, expected) = fixture(name);
 
-    let actual = oxiby::compile_str(&[name], &source, false).unwrap();
+    let actual = oxiby::compile_str(&[name], &source).unwrap();
 
     assert_eq!(actual.trim_end(), expected.trim_end());
 }
