@@ -267,9 +267,9 @@ impl WriteRuby for PatternTuple {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PatternCtor {
-    parent_ty_ident: Option<TypeIdent>,
-    ty_ident: TypeIdent,
-    fields: CtorFields,
+    pub(crate) parent_ty_ident: Option<TypeIdent>,
+    pub(crate) ty_ident: TypeIdent,
+    pub(crate) fields: CtorFields,
 }
 
 impl WriteRuby for PatternCtor {
@@ -350,9 +350,9 @@ pub enum CtorFields {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CtorStructField {
-    name: ExprIdent,
-    rename: Option<ExprIdent>,
-    pattern: Option<Pattern>,
+    pub(crate) name: ExprIdent,
+    pub(crate) rename: Option<ExprIdent>,
+    pub(crate) pattern: Option<Pattern>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
