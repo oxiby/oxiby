@@ -218,10 +218,34 @@ impl Infer for ExprLet {
                     unhandled_ty => todo!("TODO: Unhandled ctor pattern: {unhandled_ty:?}"),
                 }
             }
-            Pattern::Type(pattern_type) => todo!(
-                "TODO: Type checking for let bindings is not yet implemented for pattern \
-                 {pattern_type:?}"
-            ),
+            Pattern::Type(pattern_type) => {
+                let name: check::Type = pattern_type.ty.clone().into();
+
+                inferred = self.body.infer(checker)?;
+
+                let ascribed_ty = match checker.get_type_constructor(&name.base_name()) {
+                    Some((ascribed_ty, _members)) => ascribed_ty.clone(),
+                    None => {
+                        return Err(Error::build("Unknown type")
+                            .with_detail(&format!("Type `{name}` is not in scope."), self.span)
+                            .finish());
+                    }
+                };
+
+                if ascribed_ty != inferred {
+                    return Err(Error::type_mismatch()
+                        .with_detail(
+                            &format!(
+                                "Expression was expected to be `{ascribed_ty}` but was \
+                                 `{inferred}`."
+                            ),
+                            self.span,
+                        )
+                        .finish());
+                }
+
+                checker.push_term_var(pattern_type.ident.as_str(), inferred.clone());
+            }
         }
 
         Ok(inferred)

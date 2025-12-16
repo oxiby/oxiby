@@ -206,8 +206,8 @@ impl WriteRuby for PatternIdent {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PatternType {
-    ident: ExprIdent,
-    ty: Type,
+    pub(crate) ident: ExprIdent,
+    pub(crate) ty: Type,
 }
 
 impl PatternType {

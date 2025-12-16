@@ -61,7 +61,7 @@ fn main() {
     // print_lines the given value
     print_line(x)
 
-    // Variables can have type annotations
+    // Variables can have type ascriptions
     let s: String = "I'm a string!"
 
     print_line(s)
