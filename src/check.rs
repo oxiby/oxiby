@@ -648,16 +648,16 @@ impl ModuleTypes {
 pub struct Checker {
     counter: usize,
     context: Vec<Entry>,
-    current_module: Option<String>,
+    current_module: String,
     modules: HashMap<String, ModuleTypes>,
 }
 
 impl Checker {
-    pub fn new(modules: HashMap<String, Module>) -> Self {
+    pub fn new(modules: HashMap<String, Module>, entry_module_path_string: String) -> Self {
         Self {
             counter: 0,
             context: Vec::new(),
-            current_module: None,
+            current_module: entry_module_path_string,
             modules: modules
                 .into_iter()
                 .map(|(module_path, module)| (module_path, ModuleTypes::new(module)))
@@ -809,31 +809,16 @@ impl Checker {
     }
 
     pub fn current_module(&self) -> &ModuleTypes {
-        &self.modules[self.current_module.as_ref().unwrap()]
+        &self.modules[&self.current_module]
     }
 
     fn current_module_mut(&mut self) -> &mut ModuleTypes {
         self.modules
-            .get_mut(
-                self.current_module
-                    .as_ref()
-                    .expect("current_module should be set to call current_module_mut"),
-            )
-            .expect("current_module should always be a path that's in the modules map")
+            .get_mut(&self.current_module)
+            .expect("self.current_module should always be a valid key")
     }
 
     pub fn check(&mut self) -> Result<(), Error> {
-        let entry_module_path = match self
-            .modules
-            .iter()
-            .find(|(_, module)| module.is_entry_module)
-        {
-            Some((module_path, _module)) => module_path.clone(),
-            None => return Err(Error::build("No entry module found.").finish()),
-        };
-
-        self.current_module = Some(entry_module_path.clone());
-
         let mut seen_modules = HashSet::new();
 
         self.collect_declarations(
@@ -858,9 +843,13 @@ impl Checker {
         for item in items {
             if let Item::Use(item_use) = item {
                 let module_path: ModulePath = item_use.path.clone().into();
-                let module_path_string = module_path.to_string();
+                let module_path_string = if item_use.is_self {
+                    self.current_module.clone()
+                } else {
+                    imported_modules.insert(module_path.clone());
 
-                imported_modules.insert(module_path);
+                    module_path.to_string()
+                };
 
                 for import in &item_use.idents {
                     match import {
@@ -1043,14 +1032,13 @@ impl Checker {
                 continue;
             }
 
-            // Remember which module we're in now before switching to the next one.
-            let current_module = self.current_module.take();
+            // Get the name of the module to switch to.
             let next_module = module_path.to_string();
 
-            // Switch to the next module.
-            self.current_module = Some(next_module);
+            // Remember which module we're in now before switching to the next one.
+            let previous_module = std::mem::replace(&mut self.current_module, next_module);
 
-            // Mark the one we're switching to as seen so we don't collect it twice.
+            // Mark the one we're switching to as seen for the `contains` check above.
             seen_modules.insert(module_path.clone());
 
             // Collect the next module.
@@ -1058,7 +1046,7 @@ impl Checker {
             self.collect_declarations(&items, seen_modules)?;
 
             // Switch back to the original module.
-            self.current_module = current_module;
+            self.current_module = previous_module;
         }
 
         Ok(())

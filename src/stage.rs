@@ -100,9 +100,16 @@ pub fn check(
         })
         .collect();
 
+    let entry_module_path_string = modules
+        .iter()
+        .find(|(_name, module)| module.is_entry_module())
+        .expect("The first file parsed should be marked as the entry module.")
+        .0
+        .clone();
+
     modules.extend(crate::compiler::std_modules());
 
-    let mut checker = Checker::new(modules);
+    let mut checker = Checker::new(modules, entry_module_path_string);
 
     checker
         .check()
