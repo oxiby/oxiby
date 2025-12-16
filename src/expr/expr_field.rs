@@ -106,11 +106,19 @@ impl Infer for ExprField {
                 let name = expr_call.name.as_str();
 
                 let Some(rhs_ty) = members.get_function(name) else {
-                    todo!("TODO: 123");
+                    return Err(Error::build("Unknown method")
+                        .with_detail(
+                            &format!("Type `{lhs_ty}` has no method `{name}`."),
+                            expr_call.span,
+                        )
+                        .finish());
                 };
 
                 let check::Type::Fn(function) = rhs_ty else {
-                    todo!("TODO: 456");
+                    todo!(
+                        "TODO: In what situation would the type of a function stored in `members` \
+                         not be check::Type::Fn?"
+                    );
                 };
 
                 if is_static != function.is_static {
@@ -151,8 +159,6 @@ impl Infer for ExprField {
             }
             _ => todo!("TODO: Unhandled ExprField RHS"),
         };
-
-        // dbg!(lhs_ty, &rhs_ty);
 
         Ok(rhs_ty)
     }
