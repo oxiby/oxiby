@@ -115,5 +115,9 @@ pub fn check(
         .check()
         .map_err(|error| vec![ErrorWithSource::from_error(path, source, error)])?;
 
-    Ok(checker.into_modules())
+    let mut modules = checker.into_modules();
+
+    modules.retain(|key, _value| !key.is_std());
+
+    Ok(modules)
 }
