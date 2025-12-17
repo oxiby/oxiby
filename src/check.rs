@@ -41,20 +41,40 @@ impl Type {
         Self::Primitive(PrimitiveType::Boolean)
     }
 
+    pub fn is_boolean(&self) -> bool {
+        matches!(self, Self::Primitive(PrimitiveType::Boolean))
+    }
+
     pub fn float() -> Self {
         Self::Primitive(PrimitiveType::Float)
+    }
+
+    pub fn is_float(&self) -> bool {
+        matches!(self, Self::Primitive(PrimitiveType::Float))
     }
 
     pub fn integer() -> Self {
         Self::Primitive(PrimitiveType::Integer)
     }
 
+    pub fn is_integer(&self) -> bool {
+        matches!(self, Self::Primitive(PrimitiveType::Integer))
+    }
+
     pub fn string() -> Self {
         Self::Primitive(PrimitiveType::String)
     }
 
+    pub fn is_string(&self) -> bool {
+        matches!(self, Self::Primitive(PrimitiveType::String))
+    }
+
     pub fn range() -> Self {
         Self::Primitive(PrimitiveType::Range)
+    }
+
+    pub fn is_range(&self) -> bool {
+        matches!(self, Self::Primitive(PrimitiveType::Range))
     }
 
     pub fn list() -> Self {
@@ -62,6 +82,17 @@ impl Type {
             Box::new(Self::constructor("List")),
             vec![Self::variable("t")],
         )
+    }
+
+    pub fn is_list(&self) -> bool {
+        if let Self::Generic(constructor, _) = self
+            && let Self::Constructor(ref name) = **constructor
+            && name == "List"
+        {
+            return true;
+        }
+
+        false
     }
 
     pub fn constructor<S>(s: S) -> Self
