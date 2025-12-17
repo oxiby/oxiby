@@ -306,7 +306,7 @@ impl Display for Type {
                     .collect::<Vec<_>>()
                     .join(", "),
             ),
-            Self::Variable(variable) => variable,
+            Self::Variable(_) => &format!("type variable"),
             Self::Tuple(types) => &format!(
                 "({})",
                 types
