@@ -583,10 +583,11 @@ impl Infer for Expr {
 
             // Member access
             Self::Field(expr_field) => expr_field.infer(checker)?,
+            Self::Index(expr_index) => expr_index.infer(checker)?,
 
             // Calls
             Self::Call(expr_call) => expr_call.infer(checker)?,
-            Self::Index(expr_index) => expr_index.infer(checker)?,
+            Self::Closure(expr_closure) => expr_closure.infer(checker)?,
 
             // Control flow
             Self::Break(expr_break) => expr_break.infer(checker)?,

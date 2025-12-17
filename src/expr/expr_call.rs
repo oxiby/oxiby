@@ -164,9 +164,8 @@ pub fn infer_function<'a>(
             EitherOrBoth::Both(ty, expr) => {
                 let expr_ty = expr.infer(checker)?;
 
-                if let check::Type::Variable(ty_var) = ty {
-                    return Ok(checker.substitute(&function.return_type.clone(), ty_var, &expr_ty));
-                    // return Ok(function.return_type.clone().substitute(ty_var, &expr_ty));
+                if let check::Type::Variable(_ty_var) = ty {
+                    println!("ty={ty:?}, expr_ty={expr_ty:?}");
                 } else if *ty != expr_ty {
                     return Err(Error::type_mismatch()
                         .with_detail(

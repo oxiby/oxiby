@@ -2,7 +2,9 @@ use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
 
+use crate::check::{self, Checker, Function, Infer};
 use crate::compiler::{Scope, WriteRuby};
+use crate::error::Error;
 use crate::expr::{Expr, ExprIdent};
 use crate::token::Token;
 use crate::types::Type;
@@ -85,6 +87,46 @@ impl WriteRuby for ExprClosure {
         }
 
         scope.fragment(" }");
+    }
+}
+
+impl Infer for ExprClosure {
+    fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
+        let mut positional_params = Vec::with_capacity(self.params.len());
+
+        checker.push_scope();
+
+        for param in &self.params {
+            let FnArg {
+                binding,
+                ty: maybe_ty,
+            } = param;
+
+            let ty = maybe_ty
+                .as_ref()
+                .map_or_else(|| checker.create_type_var(), |ty| ty.clone().into());
+
+            positional_params.push(ty.clone());
+            checker.push_term_var(binding.as_str(), ty);
+        }
+
+        let mut return_type = check::Type::unit();
+
+        for expr in &self.body {
+            return_type = expr.infer(checker)?;
+        }
+
+        checker.pop_scope();
+
+        let ret = check::Type::Fn(Function {
+            name: None,
+            is_static: true,
+            positional_params,
+            keyword_params: Vec::new(),
+            return_type: Box::new(return_type),
+        });
+
+        Ok(ret)
     }
 }
 

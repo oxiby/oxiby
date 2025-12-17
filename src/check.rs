@@ -19,9 +19,6 @@ pub enum Entry {
     Scope,
 }
 
-#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
-pub struct TypeVar(usize);
-
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub enum Type {
     Primitive(PrimitiveType),
@@ -254,6 +251,7 @@ impl Type {
                     }
                 }
             }
+            Self::Primitive(_primitive_type) => {}
             _ => {
                 todo!("TODO: Type variable substitution for {self}");
             }
@@ -782,8 +780,8 @@ impl Checker {
             })
     }
 
-    pub fn create_type_var(&mut self) -> TypeVar {
-        let type_var = TypeVar(self.counter);
+    pub fn create_type_var(&mut self) -> Type {
+        let type_var = Type::variable(self.counter.to_string());
 
         self.counter += 1;
 
