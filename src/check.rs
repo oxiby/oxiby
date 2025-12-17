@@ -306,7 +306,7 @@ impl Display for Type {
                     .collect::<Vec<_>>()
                     .join(", "),
             ),
-            Self::Variable(_) => &format!("type variable"),
+            Self::Variable(_) => "type variable",
             Self::Tuple(types) => &format!(
                 "({})",
                 types
@@ -726,6 +726,20 @@ impl Checker {
                 )
                 .finish()
         })
+    }
+
+    pub fn replace_contextual(&mut self, name: &str, replacement: Type) {
+        for entry in self.context.iter_mut().rev() {
+            if let Entry::TermVar(var, ty) = entry
+                && var == name
+            {
+                *ty = replacement;
+
+                return;
+            }
+        }
+
+        panic!("Attempted to replace nonexistent contexual type `{name}`.");
     }
 
     pub fn push_term_var<S>(&mut self, name: S, ty: Type)

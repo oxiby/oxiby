@@ -164,9 +164,7 @@ pub fn infer_function<'a>(
             EitherOrBoth::Both(ty, expr) => {
                 let expr_ty = expr.infer(checker)?;
 
-                if let check::Type::Variable(_ty_var) = ty {
-                    println!("ty={ty:?}, expr_ty={expr_ty:?}");
-                } else if *ty != expr_ty {
+                if !ty.is_variable() && *ty != expr_ty {
                     return Err(Error::type_mismatch()
                         .with_detail(
                             &format!("Argument was expected to be `{ty}` but was `{expr_ty}`."),
@@ -259,13 +257,38 @@ impl WriteRuby for ExprCall {
     }
 }
 
+fn resolve_closure<'a>(
+    checker: &mut Checker,
+    function: &mut check::Function,
+    call_args: impl Iterator<Item = &'a Expr>,
+) -> Result<(), Error> {
+    for (param_ty, expr) in function.positional_params.iter_mut().zip(call_args) {
+        if let check::Type::Variable(_variable) = param_ty {
+            *param_ty = expr.infer(checker)?;
+        }
+    }
+
+    Ok(())
+}
+
 impl Infer for ExprCall {
     fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
         let name = self.name.as_str();
 
         if let Some(ty) = checker.get_contextual(name) {
             match ty {
-                check::Type::Fn(function) => {
+                check::Type::Fn(mut function) => {
+                    if function.name.is_none()
+                        && function
+                            .positional_params
+                            .iter()
+                            .any(check::Type::is_variable)
+                    {
+                        resolve_closure(checker, &mut function, self.positional_args.iter())?;
+
+                        checker.replace_contextual(name, check::Type::Fn(function.clone()));
+                    }
+
                     return infer_function(
                         checker,
                         &function,

@@ -82,30 +82,34 @@ impl Infer for ExprBinary {
             | Operator::Lt
             | Operator::Gt => check::Type::boolean(),
             Operator::Mul | Operator::Div | Operator::Mod | Operator::Add | Operator::Sub => {
-                if !(lhs_type.is_integer() || lhs_type.is_float()) {
-                    return Err(Error::type_mismatch()
-                        .with_detail(
-                            &format!(
-                                "Expected left-hand side of `{}` operation to be `Integer` or \
-                                 `Float`, but was `{lhs_type}`.",
-                                self.op
-                            ),
-                            self.lhs.span(),
-                        )
-                        .finish());
-                } else if !(rhs_type.is_integer() || rhs_type.is_float()) {
-                    return Err(Error::type_mismatch()
-                        .with_detail(
-                            &format!(
-                                "Expected right-hand side of `+` operation to be `Integer` or \
-                                 `Float`, but was `{rhs_type}`."
-                            ),
-                            self.rhs.span(),
-                        )
-                        .finish());
-                }
+                if lhs_type.is_variable() || rhs_type.is_variable() {
+                    rhs_type
+                } else {
+                    if !(lhs_type.is_integer() || lhs_type.is_float()) {
+                        return Err(Error::type_mismatch()
+                            .with_detail(
+                                &format!(
+                                    "Expected left-hand side of `{}` operation to be `Integer` or \
+                                     `Float`, but was `{lhs_type}`.",
+                                    self.op
+                                ),
+                                self.lhs.span(),
+                            )
+                            .finish());
+                    } else if !(rhs_type.is_integer() || rhs_type.is_float()) {
+                        return Err(Error::type_mismatch()
+                            .with_detail(
+                                &format!(
+                                    "Expected right-hand side of `+` operation to be `Integer` or \
+                                     `Float`, but was `{rhs_type}`."
+                                ),
+                                self.rhs.span(),
+                            )
+                            .finish());
+                    }
 
-                rhs_type
+                    rhs_type
+                }
             }
             Operator::Not => unreachable!("Cannot have a binary `Not` expression."),
         })

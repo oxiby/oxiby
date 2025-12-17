@@ -608,7 +608,9 @@ impl Infer for Expr {
             Self::Binary(expr_binary) => expr_binary.infer(checker)?,
             Self::Parenthesized(expr_parenthesized) => expr_parenthesized.infer(checker)?,
 
-            _ => todo!("Type inference not yet implemented for expression {self:?}"),
+            Self::Ruby(expr_ruby) => {
+                todo!("Type inference not yet implemented for ExprRuby: {expr_ruby:?}")
+            }
         };
 
         Ok(ty)
