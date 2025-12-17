@@ -340,12 +340,14 @@ fn run_check(chk: &Check) -> Result<(), CliError> {
     let source = read_file(&chk.entry_file)?;
     let modules = HashMap::new();
 
-    let modules = check(&source, &chk.entry_file, chk.entry_file.parent(), modules)
-        .map_err(CliError::Source)?;
-
-    if chk.debug {
-        dbg!(modules);
-    }
+    check(
+        &source,
+        &chk.entry_file,
+        chk.entry_file.parent(),
+        modules,
+        chk.debug,
+    )
+    .map_err(CliError::Source)?;
 
     Ok(())
 }
@@ -367,6 +369,7 @@ fn run_build(build: &Build) -> Result<(), CliError> {
             &build.entry_file,
             build.entry_file.parent(),
             modules,
+            false,
         )
         .map(|modules| {
             modules

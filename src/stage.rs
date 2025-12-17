@@ -89,6 +89,7 @@ pub fn check(
     path: &Path,
     parent_path: Option<&Path>,
     mut modules: HashMap<ModulePath, Vec<Item>>,
+    debug: bool,
 ) -> Result<HashMap<ModulePath, Module>, Vec<ErrorWithSource>> {
     parse_all(source, path, parent_path, &mut modules, true)?;
 
@@ -111,13 +112,15 @@ pub fn check(
 
     let mut checker = Checker::new(modules, entry_module_path_string);
 
-    checker
+    let result = checker
         .check()
-        .map_err(|error| vec![ErrorWithSource::from_error(path, source, error)])?;
+        .map_err(|error| vec![ErrorWithSource::from_error(path, source, error)]);
 
-    let mut modules = checker.into_modules();
+    if debug {
+        checker.debug();
+    }
 
-    modules.retain(|key, _value| !key.is_std());
+    result?;
 
-    Ok(modules)
+    Ok(checker.into_modules())
 }

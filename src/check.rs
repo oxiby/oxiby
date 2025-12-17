@@ -749,6 +749,17 @@ impl Checker {
         }
     }
 
+    pub fn debug(&self) {
+        eprintln!(
+            "{:#?}",
+            self.modules
+                .clone()
+                .into_iter()
+                .filter(|(name, _module_types)| !name.starts_with("std"))
+                .collect::<HashMap<String, ModuleTypes>>()
+        );
+    }
+
     pub fn into_modules(self) -> HashMap<ModulePath, Module> {
         self.modules
             .into_iter()
