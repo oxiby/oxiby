@@ -3,15 +3,15 @@ fn main() {
 
     null()
 
-    let implicit = fn(n) {
-        n + 1
+    let implicit = fn(name) {
+        "Hello, #{name}!"
     }
 
-    print_line(implicit(1))
+    print_line(implicit("Oxiby"))
 
-    let explicit = fn(n: Integer) -> Integer {
-        n + 1
+    let explicit = fn(name: String) -> String {
+        "Hello, #{name}!"
     }
 
-    print_line(explicit(1))
+    print_line(explicit("Oxiby"))
 }

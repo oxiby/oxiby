@@ -1,6 +1,6 @@
 #![allow(unused_imports, dead_code, clippy::unused_self)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use chumsky::Parser;
@@ -9,7 +9,7 @@ use chumsky::span::SimpleSpan;
 
 use crate::item::{ImportKind, Item};
 use crate::module::{Module, ModulePath, RubyModuleConstants};
-use crate::stage::parse;
+use crate::stage::{check, parse};
 use crate::token::Token;
 
 static STD_RB: [[&str; 2]; 5] = [
@@ -81,15 +81,17 @@ pub struct Scope {
     conditional_nesting: usize,
     items: Vec<ScopeItem>,
     module_path: ModulePath,
+    closures: HashSet<SimpleSpan>,
     imports: HashMap<String, (String, ImportKind)>,
 }
 
 impl Scope {
-    pub fn new(module_path: ModulePath) -> Self {
+    pub fn new(module_path: ModulePath, closures: HashSet<SimpleSpan>) -> Self {
         Self {
             conditional_nesting: 0,
             items: Vec::new(),
             module_path,
+            closures,
             imports: HashMap::new(),
         }
     }
@@ -99,6 +101,7 @@ impl Scope {
             conditional_nesting: 0,
             items: Vec::new(),
             module_path: self.module_path.clone(),
+            closures: self.closures.clone(),
             imports: self.imports.clone(),
         }
     }
@@ -224,6 +227,10 @@ impl Scope {
         self.module_path.clone().into()
     }
 
+    pub fn is_closure(&self, span: SimpleSpan) -> bool {
+        self.closures.contains(&span)
+    }
+
     fn into_output(self, indent: usize) -> String {
         let mut out = String::new();
         let mut scope_items = self.items.into_iter().peekable();
@@ -328,10 +335,15 @@ where
 }
 
 #[must_use]
-pub fn compile_module(module_path: &ModulePath, items: &[Item]) -> String {
+#[allow(clippy::implicit_hasher)]
+pub fn compile_module(
+    module_path: &ModulePath,
+    items: &[Item],
+    closures: HashSet<SimpleSpan>,
+) -> String {
     let is_entry = module_path.is_entry_module();
     let is_std = module_path.is_std();
-    let mut scope = Scope::new(module_path.clone());
+    let mut scope = Scope::new(module_path.clone(), closures);
 
     scope.add_import("print_line", ("::Std::Io.print_line", ImportKind::Function));
     scope.add_import("print", ("::Std::Io.print", ImportKind::Function));
@@ -411,5 +423,5 @@ pub fn compile_str(module_path: &[&str], source: &str) -> Result<String, Vec<Str
                 .collect::<Vec<String>>()
         })?;
 
-    Ok(compile_module(&module_path, &items))
+    Ok(compile_module(&module_path, &items, HashSet::new()))
 }

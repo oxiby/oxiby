@@ -1,5 +1,8 @@
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
+
+use chumsky::span::SimpleSpan;
 
 use crate::expr::ExprIdent;
 use crate::item::Item;
@@ -8,19 +11,24 @@ use crate::item::Item;
 pub struct Module {
     path: ModulePath,
     items: Vec<Item>,
+    closures: HashSet<SimpleSpan>,
 }
 
 impl Module {
     pub fn new(path: ModulePath, items: Vec<Item>) -> Self {
-        Self { path, items }
+        Self {
+            path,
+            items,
+            closures: HashSet::new(),
+        }
     }
 
     pub fn items(&self) -> &[Item] {
         &self.items
     }
 
-    pub fn into_items(self) -> Vec<Item> {
-        self.items
+    pub fn into_items_and_closures(self) -> (Vec<Item>, HashSet<SimpleSpan>) {
+        (self.items, self.closures)
     }
 
     pub fn is_entry_module(&self) -> bool {
@@ -29,6 +37,10 @@ impl Module {
 
     pub fn is_std(&self) -> bool {
         self.path.is_std()
+    }
+
+    pub fn extend_closures(&mut self, closures: HashSet<SimpleSpan>) {
+        self.closures.extend(closures);
     }
 }
 

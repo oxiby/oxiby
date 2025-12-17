@@ -568,6 +568,7 @@ pub struct ModuleTypes {
     pub type_constructors: HashMap<String, (Type, TypeMembers)>,
     pub value_constructors: HashMap<String, Type>,
     pub functions: HashMap<String, Type>,
+    pub closures: HashSet<SimpleSpan>,
 }
 
 impl ModuleTypes {
@@ -628,6 +629,7 @@ impl ModuleTypes {
             type_constructors,
             value_constructors,
             functions,
+            closures: HashSet::new(),
         }
     }
 
@@ -664,11 +666,17 @@ impl ModuleTypes {
         self.functions.insert(name.to_string(), ty);
     }
 
+    pub fn mark_closure(&mut self, span: SimpleSpan) {
+        self.closures.insert(span);
+    }
+
     pub fn items(&self) -> &[Item] {
         self.module.items()
     }
 
-    pub fn into_module(self) -> Module {
+    pub fn into_module(mut self) -> Module {
+        self.module.extend_closures(self.closures);
+
         self.module
     }
 }
@@ -761,6 +769,10 @@ impl Checker {
                 break;
             }
         }
+    }
+
+    pub fn mark_closure(&mut self, span: SimpleSpan) {
+        self.current_module_mut().mark_closure(span);
     }
 
     pub fn debug(&self) {

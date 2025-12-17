@@ -225,6 +225,10 @@ impl WriteRuby for ExprCall {
             self.name.write_ruby(scope);
         }
 
+        if scope.is_closure(self.span) {
+            scope.fragment(".call");
+        }
+
         if !self.has_args() {
             return;
         }
@@ -278,6 +282,10 @@ impl Infer for ExprCall {
         if let Some(ty) = checker.get_contextual(name) {
             match ty {
                 check::Type::Fn(mut function) => {
+                    if function.name.is_none() {
+                        checker.mark_closure(self.span);
+                    }
+
                     if function.name.is_none()
                         && function
                             .positional_params

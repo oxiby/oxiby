@@ -362,6 +362,7 @@ fn run_build(build: &Build) -> Result<(), CliError> {
 
     let source = read_file(&build.entry_file)?;
     let mut modules = HashMap::new();
+    let mut closures = HashMap::new();
 
     if build.check {
         modules = check(
@@ -374,7 +375,11 @@ fn run_build(build: &Build) -> Result<(), CliError> {
         .map(|modules| {
             modules
                 .into_iter()
-                .map(|(module_path, module)| (module_path, module.into_items()))
+                .map(|(module_path, module)| {
+                    let (items, module_closures) = module.into_items_and_closures();
+                    closures.insert(module_path.clone(), module_closures);
+                    (module_path, items)
+                })
                 .collect()
         })
         .map_err(CliError::Source)?;
@@ -390,7 +395,11 @@ fn run_build(build: &Build) -> Result<(), CliError> {
     }
 
     for (module_path, items) in modules {
-        let output = crate::compile_module(&module_path, &items);
+        let output = crate::compile_module(
+            &module_path,
+            &items,
+            closures.get(&module_path).unwrap().clone(),
+        );
 
         if build.should_write_to_stdout() {
             println!("{output}");
