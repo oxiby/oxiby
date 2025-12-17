@@ -8,4 +8,8 @@ pub struct List<t> {
 
         list
     }
+
+    pub fn sample(self) -> t {
+        self.sample()
+    }
 }
