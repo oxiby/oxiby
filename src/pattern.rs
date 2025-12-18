@@ -18,7 +18,7 @@ pub enum Pattern {
     Ident(PatternIdent),     // x
     Tuple(PatternTuple),     // (pattern, pattern)
     Ctor(PatternCtor),       // Example, Example(x, y), Example { x, y -> y2, z -> z2 = "foo" }
-    Wildcard,                // _
+    Wildcard(SimpleSpan),    // _
 }
 
 impl Pattern {
@@ -41,7 +41,9 @@ impl Pattern {
         let mut pattern_ctor_parser = Recursive::declare();
 
         pattern_parser.define(choice((
-            just(Token::Underscore).to(Self::Wildcard),
+            just(Token::Underscore)
+                .ignored()
+                .map_with(|(), extra| Self::Wildcard(extra.span())),
             PatternLiteral::parser(expr.clone()).map(Self::Literal),
             PatternType::parser().map(Self::Type),
             PatternIdent::parser().map(Self::Ident),
@@ -124,7 +126,7 @@ impl Pattern {
             Self::Ident(pattern_ident) => pattern_ident.span,
             Self::Tuple(pattern_tuple) => pattern_tuple.span,
             Self::Ctor(pattern_ctor) => pattern_ctor.span,
-            Self::Wildcard => self.span(),
+            Self::Wildcard(span) => *span,
         }
     }
 }
@@ -137,7 +139,7 @@ impl WriteRuby for Pattern {
             Self::Ident(pattern_ident) => pattern_ident.write_ruby(scope),
             Self::Tuple(pattern_tuple) => pattern_tuple.write_ruby(scope),
             Self::Ctor(pattern_ctor) => pattern_ctor.write_ruby(scope),
-            Self::Wildcard => (),
+            Self::Wildcard(_) => (),
         }
     }
 }
@@ -430,7 +432,7 @@ impl MatchArm {
 
 impl WriteRuby for MatchArm {
     fn write_ruby(&self, scope: &mut Scope) {
-        if let Pattern::Wildcard = self.pattern {
+        if let Pattern::Wildcard(_) = self.pattern {
             scope.fragment("else");
         } else {
             scope.fragment("in ");
@@ -461,7 +463,7 @@ pub fn match_bindings(
             bindings.push((pattern_ident.ident.to_string(), expr_ty.clone()));
         }
         // TODO: Ensure the scrutinee matches literal patterns.
-        Pattern::Literal(_) | Pattern::Wildcard => {}
+        Pattern::Literal(_) | Pattern::Wildcard(_) => {}
         Pattern::Tuple(pattern_tuple) => {
             let check::Type::Tuple(tys) = expr_ty else {
                 return Err(Error::type_mismatch()
@@ -495,6 +497,27 @@ pub fn match_bindings(
                 match pattern {
                     Pattern::Ident(pattern_ident) => {
                         bindings.push((pattern_ident.ident.to_string(), ty.clone()));
+                    }
+                    Pattern::Literal(pattern_literal) => {
+                        let literal_ty = match pattern_literal {
+                            PatternLiteral::Boolean(_) => check::Type::boolean(),
+                            PatternLiteral::Integer(_) => check::Type::integer(),
+                            PatternLiteral::Float(_) => check::Type::float(),
+                            PatternLiteral::String(_) => check::Type::string(),
+                        };
+
+                        if ty != &literal_ty {
+                            return Err(Error::type_mismatch()
+                                .with_detail(
+                                    &format!(
+                                        "Pattern literal is of type `{literal_ty}`, but is \
+                                         matching against a tuple field of type `{ty}`."
+                                    ),
+                                    pattern_literal.span(),
+                                )
+                                .with_context("Matched expression is here.", expr_span)
+                                .finish());
+                        }
                     }
                     _ => todo!("TODO: Unhandled pattern within tuple pattern: {pattern:?}"),
                 }

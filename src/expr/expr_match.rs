@@ -84,7 +84,7 @@ impl Infer for ExprMatch {
                 &expr_ty,
                 &arm.pattern,
                 self.span,
-                arm.body.span(),
+                self.expr.span(),
                 arm.pattern.span(),
             )?;
 
