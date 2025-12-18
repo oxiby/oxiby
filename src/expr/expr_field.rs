@@ -87,7 +87,7 @@ impl Infer for ExprField {
                         .finish()
                 })?;
 
-                match function.positional_params.get(param_index) {
+                match function.get_positional_param(param_index) {
                     Some(param_ty) => param_ty.clone(),
                     None => {
                         return Err(Error::build("Unknown field")
@@ -121,8 +121,8 @@ impl Infer for ExprField {
                     );
                 };
 
-                if is_static != function.is_static {
-                    if function.is_static {
+                if is_static != function.is_static() {
+                    if function.is_static() {
                         return Err(Error::build("Invalid method call")
                             .with_detail(
                                 &format!(

@@ -159,7 +159,7 @@ pub fn infer_function<'a>(
     span: SimpleSpan,
     noun: Noun,
 ) -> Result<check::Type, Error> {
-    for pair in function.positional_params.iter().zip_longest(call_args) {
+    for pair in function.positional_params().zip_longest(call_args) {
         match pair {
             EitherOrBoth::Both(ty, expr) => {
                 let expr_ty = expr.infer(checker)?;
@@ -193,7 +193,7 @@ pub fn infer_function<'a>(
 
                 return Err(Error::build("Extra argument")
                     .with_detail(
-                        &(match &function.name {
+                        &(match function.name() {
                             Some(name) => format!(
                                 "Argument of type `{expr_ty}` is not expected by {} `{}`.",
                                 noun.lowercase(),
@@ -212,7 +212,7 @@ pub fn infer_function<'a>(
         }
     }
 
-    Ok(*function.return_type.clone())
+    Ok(function.return_type().clone())
 }
 
 impl WriteRuby for ExprCall {
@@ -266,7 +266,7 @@ fn resolve_closure<'a>(
     function: &mut check::Function,
     call_args: impl Iterator<Item = &'a Expr>,
 ) -> Result<(), Error> {
-    for (param_ty, expr) in function.positional_params.iter_mut().zip(call_args) {
+    for (param_ty, expr) in function.positional_params_mut().zip(call_args) {
         if let check::Type::Variable(_variable) = param_ty {
             *param_ty = expr.infer(checker)?;
         }
@@ -282,15 +282,12 @@ impl Infer for ExprCall {
         if let Some(ty) = checker.get_contextual(name) {
             match ty {
                 check::Type::Fn(mut function) => {
-                    if function.name.is_none() {
+                    if function.has_name() {
                         checker.mark_closure(self.span);
                     }
 
-                    if function.name.is_none()
-                        && function
-                            .positional_params
-                            .iter()
-                            .any(check::Type::is_variable)
+                    if !function.has_name()
+                        && function.positional_params().any(check::Type::is_variable)
                     {
                         resolve_closure(checker, &mut function, self.positional_args.iter())?;
 

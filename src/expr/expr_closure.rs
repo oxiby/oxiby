@@ -118,13 +118,13 @@ impl Infer for ExprClosure {
 
         checker.pop_scope();
 
-        let ret = check::Type::Fn(Function {
-            name: None,
-            is_static: true,
+        let ret = check::Type::Fn(Function::new(
+            None,
+            true,
             positional_params,
-            keyword_params: Vec::new(),
-            return_type: Box::new(return_type),
-        });
+            Vec::new(),
+            return_type,
+        ));
 
         Ok(ret)
     }

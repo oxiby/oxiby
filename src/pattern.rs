@@ -577,18 +577,18 @@ pub fn match_bindings(
                         );
                     };
 
-                    if idents.len() != function.positional_params.len() {
+                    if idents.len() != function.positional_params_count() {
                         return Err(Error::build("Wrong number of fields")
                             .with_detail(
                                 &format!(
                                     "Tuple type `{ty}` requires {} {}, but the pattern contained \
                                      {}",
-                                    if function.positional_params.len() == 1 {
+                                    if function.positional_params_count() == 1 {
                                         "field"
                                     } else {
                                         "fields"
                                     },
-                                    function.positional_params.len(),
+                                    function.positional_params_count(),
                                     idents.len(),
                                 ),
                                 pattern_span,
@@ -596,7 +596,7 @@ pub fn match_bindings(
                             .finish());
                     }
 
-                    for (ident, ty) in idents.iter().zip(function.positional_params.iter()) {
+                    for (ident, ty) in idents.iter().zip(function.positional_params()) {
                         bindings.push((ident.ident.clone(), ty.clone()));
                     }
                 }
