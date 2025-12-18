@@ -501,10 +501,38 @@ pub fn match_bindings(
             }
         }
         Pattern::Ctor(pattern_ctor) => {
-            let name = pattern_ctor.ty_ident.as_str();
+            let name = pattern_ctor
+                .parent_ty_ident
+                .as_ref()
+                .unwrap_or(&pattern_ctor.ty_ident)
+                .as_str();
 
             let ctor_ty = match checker.get_type_constructor(name) {
-                Some((ctor_ty, _members)) => ctor_ty.clone(),
+                Some((ctor_ty, members)) => {
+                    if pattern_ctor.parent_ty_ident.is_some() {
+                        let value_ctor_name = pattern_ctor.ty_ident.as_str();
+
+                        match members.get_value_constructor(value_ctor_name) {
+                            Some(ctor_ty) => ctor_ty.clone(),
+                            None => {
+                                return Err(Error::build("Unknown variant")
+                                    .with_detail(
+                                        &format!(
+                                            "Type `{name}` has no variant `{value_ctor_name}`."
+                                        ),
+                                        span,
+                                    )
+                                    .with_help(&format!(
+                                        "Available variants: {}.",
+                                        members.value_constructor_names().join(", ")
+                                    ))
+                                    .finish());
+                            }
+                        }
+                    } else {
+                        ctor_ty.clone()
+                    }
+                }
                 None => match checker.get_value_constructor(name) {
                     Some(ctor_ty) => ctor_ty.clone(),
                     None => {
@@ -517,9 +545,7 @@ pub fn match_bindings(
             };
 
             match (&pattern_ctor.fields, ctor_ty) {
-                (CtorFields::Unit, unhandled_ty) => {
-                    todo!("TODO: Unit struct pattern against type {unhandled_ty}")
-                }
+                (CtorFields::Unit, _ty) => {}
                 (CtorFields::Tuple(idents), ty) => {
                     let check::Type::Fn(function) = &ty else {
                         todo!(
