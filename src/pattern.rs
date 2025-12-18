@@ -1,9 +1,12 @@
+use std::collections::HashSet;
 use std::fmt::Display;
 
 use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 
+use crate::check::{self, Checker};
 use crate::compiler::{Scope, WriteRuby};
+use crate::error::Error;
 use crate::expr::{Expr, ExprBoolean, ExprFloat, ExprIdent, ExprInteger, ExprString};
 use crate::token::Token;
 use crate::types::{Type, TypeIdent};
@@ -50,10 +53,11 @@ impl Pattern {
                 .at_least(2)
                 .collect::<Vec<_>>()
                 .delimited_by(just(Token::LParen), just(Token::RParen))
-                .map(move |patterns| {
+                .map_with(move |patterns, extra| {
                     Self::Tuple(PatternTuple {
                         patterns,
                         is_bracketed,
+                        span: extra.span(),
                     })
                 }),
         )));
@@ -99,10 +103,11 @@ impl Pattern {
                     ))
                     .or_not(),
                 )
-                .map(|((parent_ty_ident, ty_ident), fields)| PatternCtor {
+                .map_with(|((parent_ty_ident, ty_ident), fields), extra| PatternCtor {
                     parent_ty_ident,
                     ty_ident,
                     fields: fields.unwrap_or(CtorFields::Unit),
+                    span: extra.span(),
                 })
                 .labelled("constructor pattern")
                 .as_context()
@@ -110,6 +115,17 @@ impl Pattern {
         );
 
         pattern_parser.labelled("pattern").boxed()
+    }
+
+    pub fn span(&self) -> SimpleSpan {
+        match self {
+            Self::Literal(pattern_literal) => pattern_literal.span(),
+            Self::Type(pattern_type) => pattern_type.span,
+            Self::Ident(pattern_ident) => pattern_ident.span,
+            Self::Tuple(pattern_tuple) => pattern_tuple.span,
+            Self::Ctor(pattern_ctor) => pattern_ctor.span,
+            Self::Wildcard => self.span(),
+        }
     }
 }
 
@@ -159,6 +175,15 @@ impl PatternLiteral {
         .as_context()
         .boxed()
     }
+
+    pub fn span(&self) -> SimpleSpan {
+        match self {
+            Self::Boolean(expr_boolean) => expr_boolean.span,
+            Self::Integer(expr_integer) => expr_integer.span,
+            Self::Float(expr_float) => expr_float.span,
+            Self::String(expr_string) => expr_string.span,
+        }
+    }
 }
 
 impl WriteRuby for PatternLiteral {
@@ -175,6 +200,7 @@ impl WriteRuby for PatternLiteral {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PatternIdent {
     pub(crate) ident: ExprIdent,
+    span: SimpleSpan,
 }
 
 impl PatternIdent {
@@ -185,7 +211,10 @@ impl PatternIdent {
         extra::Err<Rich<'a, Token, SimpleSpan>>,
     > + Clone {
         ExprIdent::parser()
-            .map(|ident| Self { ident })
+            .map_with(|ident, extra| Self {
+                ident,
+                span: extra.span(),
+            })
             .labelled("ident pattern")
             .as_context()
             .boxed()
@@ -208,6 +237,7 @@ impl WriteRuby for PatternIdent {
 pub struct PatternType {
     pub(crate) ident: ExprIdent,
     pub(crate) ty: Type,
+    span: SimpleSpan,
 }
 
 impl PatternType {
@@ -220,7 +250,11 @@ impl PatternType {
         ExprIdent::parser()
             .then_ignore(just(Token::Colon))
             .then(Type::parser())
-            .map(|(ident, ty)| Self { ident, ty })
+            .map_with(|(ident, ty), extra| Self {
+                ident,
+                ty,
+                span: extra.span(),
+            })
             .labelled("type ascription pattern")
             .as_context()
             .boxed()
@@ -243,6 +277,7 @@ impl WriteRuby for PatternType {
 pub struct PatternTuple {
     pub(crate) patterns: Vec<Pattern>,
     is_bracketed: bool,
+    span: SimpleSpan,
 }
 
 impl WriteRuby for PatternTuple {
@@ -270,6 +305,7 @@ pub struct PatternCtor {
     pub(crate) parent_ty_ident: Option<TypeIdent>,
     pub(crate) ty_ident: TypeIdent,
     pub(crate) fields: CtorFields,
+    span: SimpleSpan,
 }
 
 impl WriteRuby for PatternCtor {
@@ -408,4 +444,211 @@ impl WriteRuby for MatchArm {
             self.body.write_ruby(scope);
         });
     }
+}
+
+pub fn match_bindings(
+    checker: &mut Checker,
+    expr_ty: &check::Type,
+    pattern: &Pattern,
+    span: SimpleSpan,
+    expr_span: SimpleSpan,
+    pattern_span: SimpleSpan,
+) -> Result<Vec<(String, check::Type)>, Error> {
+    let mut bindings = Vec::new();
+
+    match &pattern {
+        Pattern::Ident(pattern_ident) => {
+            bindings.push((pattern_ident.ident.to_string(), expr_ty.clone()));
+        }
+        // TODO: Ensure the scrutinee matches literal patterns.
+        Pattern::Literal(_) | Pattern::Wildcard => {}
+        Pattern::Tuple(pattern_tuple) => {
+            let check::Type::Tuple(tys) = expr_ty else {
+                return Err(Error::type_mismatch()
+                    .with_detail(
+                        &format!(
+                            "A value of type `{expr_ty}` cannot be destructured into a tuple.",
+                        ),
+                        span,
+                    )
+                    .with_context(
+                        &format!("The expression being matched is of type `{expr_ty}`..."),
+                        expr_span,
+                    )
+                    .with_context(
+                        "...but this match arm tries to destructure it as a tuple.",
+                        pattern_span,
+                    )
+                    .finish());
+            };
+
+            if pattern_tuple.patterns.len() != tys.len() {
+                return Err(Error::type_mismatch()
+                    .with_detail(
+                        "Expected tuple of size {}, found one of size {}.",
+                        pattern_span,
+                    )
+                    .finish());
+            }
+
+            for (pattern, ty) in pattern_tuple.patterns.iter().zip(tys.iter()) {
+                match pattern {
+                    Pattern::Ident(pattern_ident) => {
+                        bindings.push((pattern_ident.ident.to_string(), ty.clone()));
+                    }
+                    _ => todo!("TODO: Unhandled pattern within tuple pattern: {pattern:?}"),
+                }
+            }
+        }
+        Pattern::Ctor(pattern_ctor) => {
+            let name = pattern_ctor.ty_ident.as_str();
+
+            let ctor_ty = match checker.get_type_constructor(name) {
+                Some((ctor_ty, _members)) => ctor_ty.clone(),
+                None => match checker.get_value_constructor(name) {
+                    Some(ctor_ty) => ctor_ty.clone(),
+                    None => {
+                        return Err(Error::build("Unknown type")
+                            .with_detail(&format!("Type `{name}` is not in scope."), span)
+                            .with_help("You might need to import this type from another module.")
+                            .finish());
+                    }
+                },
+            };
+
+            match (&pattern_ctor.fields, ctor_ty) {
+                (CtorFields::Unit, unhandled_ty) => {
+                    todo!("TODO: Unit struct pattern against type {unhandled_ty}")
+                }
+                (CtorFields::Tuple(idents), ty) => {
+                    let check::Type::Fn(function) = &ty else {
+                        todo!(
+                            "TODO: Is it possible for a CtorFields;:Tuple to contain something \
+                             other than a function?"
+                        );
+                    };
+
+                    if idents.len() != function.positional_params.len() {
+                        return Err(Error::build("Wrong number of fields")
+                            .with_detail(
+                                &format!(
+                                    "Tuple type `{ty}` requires {} {}, but the pattern contained \
+                                     {}",
+                                    if function.positional_params.len() == 1 {
+                                        "field"
+                                    } else {
+                                        "fields"
+                                    },
+                                    function.positional_params.len(),
+                                    idents.len(),
+                                ),
+                                pattern_span,
+                            )
+                            .finish());
+                    }
+
+                    for (ident, ty) in idents.iter().zip(function.positional_params.iter()) {
+                        bindings.push((ident.ident.clone(), ty.clone()));
+                    }
+                }
+                (
+                    CtorFields::Struct(pattern_fields),
+                    check::Type::RecordStruct(ty_ctor, ty_fields),
+                ) => {
+                    let mut seen_fields = HashSet::new();
+
+                    for pattern_field in pattern_fields {
+                        let Some((_, field_ty)) = ty_fields
+                            .iter()
+                            .find(|(name, _)| name == pattern_field.name.as_str())
+                        else {
+                            return Err(Error::build("Unknown field")
+                                .with_detail(
+                                    &format!(
+                                        "Type `{}` has no field `{}`.",
+                                        ty_ctor.base_name(),
+                                        pattern_field.name.as_str(),
+                                    ),
+                                    pattern_field.name.span,
+                                )
+                                .finish());
+                        };
+
+                        seen_fields.insert(pattern_field.name.to_string());
+
+                        // TODO: Check for a subpattern.
+                        // TODO: This variable needs to be in a new scope.
+                        bindings.push((
+                            pattern_field
+                                .rename
+                                .as_ref()
+                                .unwrap_or(&pattern_field.name)
+                                .to_string(),
+                            field_ty.clone(),
+                        ));
+                    }
+
+                    let unmatched_fields = ty_fields
+                        .iter()
+                        .filter_map(|(name, _ty)| {
+                            if seen_fields.contains(name) {
+                                None
+                            } else {
+                                Some(name)
+                            }
+                        })
+                        .collect::<Vec<_>>();
+
+                    if !unmatched_fields.is_empty() {
+                        return Err(Error::build("Missing fields")
+                            .with_detail(
+                                &format!(
+                                    "Type `{}` has additional fields that must be destructured in \
+                                     the pattern: {}.",
+                                    ty_ctor.base_name(),
+                                    unmatched_fields
+                                        .iter()
+                                        .map(|name| format!("`{name}`"))
+                                        .collect::<Vec<_>>()
+                                        .join(", "),
+                                ),
+                                span,
+                            )
+                            .finish());
+                    }
+                }
+                (CtorFields::Wildcard, _ty) => {
+                    // TODO: Check ctor arity?
+                }
+                unhandled_ty => todo!("TODO: Unhandled ctor pattern: {unhandled_ty:?}"),
+            }
+        }
+        Pattern::Type(pattern_type) => {
+            let name: check::Type = pattern_type.ty.clone().into();
+
+            let ascribed_ty = match checker.get_type_constructor(&name.base_name()) {
+                Some((ascribed_ty, _members)) => ascribed_ty.clone(),
+                None => {
+                    return Err(Error::build("Unknown type")
+                        .with_detail(&format!("Type `{name}` is not in scope."), span)
+                        .finish());
+                }
+            };
+
+            if ascribed_ty != *expr_ty {
+                return Err(Error::type_mismatch()
+                    .with_detail(
+                        &format!(
+                            "Expression was expected to be `{ascribed_ty}` but was `{expr_ty}`."
+                        ),
+                        span,
+                    )
+                    .finish());
+            }
+
+            bindings.push((pattern_type.ident.to_string(), expr_ty.clone()));
+        }
+    }
+
+    Ok(bindings)
 }

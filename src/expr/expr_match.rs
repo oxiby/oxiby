@@ -6,7 +6,7 @@ use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::Expr;
-use crate::pattern::MatchArm;
+use crate::pattern::{MatchArm, match_bindings};
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,36 +68,55 @@ impl WriteRuby for ExprMatch {
 
 impl Infer for ExprMatch {
     fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
-        // TODO: Ensure patterns are appropriate for the scrutinee.
-        self.expr.infer(checker)?;
+        let expr_ty = self.expr.infer(checker)?;
 
-        let (inferred, span) = match self.arms.first() {
-            Some(arm) => (arm.body.infer(checker)?, arm.span),
-            None => {
-                return Err(Error::build("Invalid match")
-                    .with_detail("Match expressions must have at least one arm.", self.span)
-                    .finish());
+        if self.arms.is_empty() {
+            return Err(Error::build("Invalid match")
+                .with_detail("Match expressions must have at least one arm.", self.span)
+                .finish());
+        }
+
+        let mut body_ty_and_span = None;
+
+        for arm in &self.arms {
+            let bindings = match_bindings(
+                checker,
+                &expr_ty,
+                &arm.pattern,
+                self.span,
+                arm.body.span(),
+                arm.pattern.span(),
+            )?;
+
+            checker.push_scope();
+
+            for (name, ty) in bindings {
+                checker.push_term_var(name, ty);
             }
-        };
 
-        for arm in self.arms.iter().skip(1) {
-            let next_inferred = arm.body.infer(checker)?;
+            let next_body_ty = arm.body.infer(checker)?;
 
-            if inferred != next_inferred {
+            if let Some((body_ty, span)) = body_ty_and_span
+                && body_ty != next_body_ty
+            {
                 return Err(Error::type_mismatch()
                     .with_detail("All match arms must be of the same type.", self.span)
                     .with_context(
-                        &format!("The first match arm is of type `{inferred}`..."),
+                        &format!("The first match arm is of type `{body_ty}`..."),
                         span,
                     )
                     .with_context(
-                        &format!("...but this match arm is of type `{next_inferred}`"),
+                        &format!("...but this match arm is of type `{next_body_ty}`"),
                         arm.span,
                     )
                     .finish());
             }
+
+            body_ty_and_span = Some((next_body_ty, arm.span));
         }
 
-        Ok(inferred)
+        Ok(body_ty_and_span
+            .expect("should have checked there was at least one match arm")
+            .0)
     }
 }
