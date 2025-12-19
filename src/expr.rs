@@ -33,7 +33,6 @@ mod expr_match;
 mod expr_parenthesized;
 mod expr_range;
 mod expr_return;
-mod expr_ruby;
 mod expr_string;
 mod expr_struct;
 mod expr_tuple;
@@ -64,7 +63,6 @@ pub use expr_match::ExprMatch;
 pub use expr_parenthesized::ExprParenthesized;
 pub use expr_range::ExprRange;
 pub use expr_return::ExprReturn;
-pub use expr_ruby::ExprRuby;
 pub use expr_string::ExprString;
 pub use expr_struct::{ExprStruct, check_records};
 pub use expr_tuple::ExprTuple;
@@ -119,7 +117,6 @@ pub enum Expr {
     Unary(ExprUnary),
     Binary(ExprBinary),
     Parenthesized(ExprParenthesized),
-    Ruby(ExprRuby),
 }
 
 impl Expr {
@@ -161,7 +158,6 @@ impl Expr {
                 ExprParenthesized::parser(expr.clone())
                     .map(Expr::Parenthesized)
                     .boxed(),
-                ExprRuby::parser().map(Expr::Ruby).boxed(),
             ))
             .boxed()
             .pratt((
@@ -484,7 +480,6 @@ impl Expr {
             Self::Unary(expr_unary) => expr_unary.span,
             Self::Binary(expr_binary) => expr_binary.span,
             Self::Parenthesized(expr_parenthesized) => expr_parenthesized.span,
-            Self::Ruby(expr_ruby) => expr_ruby.span,
         }
     }
 }
@@ -521,7 +516,6 @@ impl WriteRuby for Expr {
             Self::Unary(expr_unary) => expr_unary.write_ruby(scope),
             Self::Binary(expr_binary) => expr_binary.write_ruby(scope),
             Self::Parenthesized(expr_parenthesized) => expr_parenthesized.write_ruby(scope),
-            Self::Ruby(expr_ruby) => expr_ruby.write_ruby(scope),
         }
     }
 }
@@ -607,10 +601,6 @@ impl Infer for Expr {
             Self::Unary(expr_unary) => expr_unary.infer(checker)?,
             Self::Binary(expr_binary) => expr_binary.infer(checker)?,
             Self::Parenthesized(expr_parenthesized) => expr_parenthesized.infer(checker)?,
-
-            Self::Ruby(expr_ruby) => {
-                todo!("Type inference not yet implemented for ExprRuby: {expr_ruby:?}")
-            }
         };
 
         Ok(ty)

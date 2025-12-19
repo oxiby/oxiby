@@ -56,7 +56,6 @@ pub enum Token {
     Match,
     Pub,
     Return,
-    Ruby(String),
     SelfTerm,
     SelfType,
     Struct,
@@ -136,7 +135,6 @@ impl Display for Token {
             Self::Match => write!(f, "match"),
             Self::Pub => write!(f, "pub"),
             Self::Return => write!(f, "return"),
-            Self::Ruby(ruby) => write!(f, "ruby {{ {ruby} }}"),
             Self::SelfTerm => write!(f, "self"),
             Self::SelfType => write!(f, "Self"),
             Self::Struct => write!(f, "struct"),
@@ -295,21 +293,6 @@ pub fn lexer<'src>()
         just('@').to(Token::At),
     ));
 
-    let ruby = just("ruby")
-        .ignored()
-        .padded()
-        .then_ignore(just('{'))
-        .then(
-            any()
-                .and_is(just('}').not())
-                .padded()
-                .repeated()
-                .to_slice()
-                .map(ToString::to_string),
-        )
-        .then_ignore(just('}'))
-        .map(|((), code)| Token::Ruby(code));
-
     let ident = text::ascii::ident()
         .validate(|ident: &str, extra, emitter| {
             if RUBY_KEYWORDS.contains(&ident) {
@@ -364,7 +347,6 @@ pub fn lexer<'src>()
         });
 
     token.define(choice((
-        ruby.spanned(),
         float.spanned(),
         integer.spanned(),
         string.spanned(),
