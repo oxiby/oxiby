@@ -195,6 +195,7 @@ impl Checker {
         type_var
     }
 
+    #[allow(dead_code)]
     pub fn substitute(&mut self, target: &Type, variable: &str, replacement: &Type) -> Type {
         let Some((_ty, members)) = self
             .current_module()

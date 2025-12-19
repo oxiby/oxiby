@@ -104,7 +104,7 @@ impl Type {
         match self {
             Self::Primitive(primitive_type) => primitive_type.to_string(),
             Self::Constructor(name) => name.clone(),
-            Self::Generic { name, .. } | Self::RecordStruct { name, .. } => name.to_string(),
+            Self::Generic { name, .. } | Self::RecordStruct { name, .. } => name.base_name(),
             Self::Variable(variable) => variable.clone(),
             Self::Tuple(_) => "<tuple name placeholder>".to_string(),
             Self::Fn(_) => "<function name placeholder>".to_string(),
@@ -278,7 +278,7 @@ impl Type {
         }
     }
 
-    pub fn substitute(self, variable: &str, replacement: &Self) -> Self {
+    pub fn substitute(&self, variable: &str, replacement: &Self) -> Self {
         let mut substituted = self.clone();
 
         match substituted {
@@ -289,7 +289,22 @@ impl Type {
                     }
                 }
             }
+            Self::RecordStruct {
+                ref mut name,
+                ref mut fields,
+            } => {
+                **name = name.substitute(variable, replacement);
+
+                for (_name, field_ty) in fields {
+                    *field_ty = field_ty.substitute(variable, replacement);
+                }
+            }
             Self::Primitive(_primitive_type) => {}
+            Self::Variable(ref old_variable) => {
+                if old_variable == variable {
+                    substituted = replacement.clone();
+                }
+            }
             _ => {
                 todo!("TODO: Type variable substitution for {self}");
             }

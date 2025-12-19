@@ -88,6 +88,7 @@ impl WriteRuby for ExprStruct {
 
 impl Infer for ExprStruct {
     fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
+        // TODO: Should this be `base_name` or `full_name`?
         let name = self.ty.to_string();
 
         let (ty, maybe_members) = if let Some((ty, members)) = checker.get_type_constructor(&name) {
@@ -101,7 +102,7 @@ impl Infer for ExprStruct {
                 .finish());
         };
 
-        let check::Type::RecordStruct { name: ty, fields } = ty else {
+        let check::Type::RecordStruct { fields, .. } = &ty else {
             return Err(Error::build("Invalid struct literal")
                 .with_detail(
                     &format!(
@@ -122,27 +123,28 @@ impl Infer for ExprStruct {
                 .finish());
         };
 
-        check_records(
+        infer_from_records(
             checker,
+            &ty,
             &name,
             fields.iter(),
             self.fields.iter(),
             self.span,
             false,
-        )?;
-
-        Ok(*ty.clone())
+        )
     }
 }
 
-pub fn check_records<'a>(
+pub fn infer_from_records<'a>(
     checker: &mut Checker,
+    ty: &check::Type,
     name: &str,
     field_types: impl Iterator<Item = &'a (String, check::Type)>,
     field_values: impl Iterator<Item = &'a (ExprIdent, Expr)>,
     span: SimpleSpan,
     is_variant: bool,
-) -> Result<(), Error> {
+) -> Result<check::Type, Error> {
+    let mut inferred_ty = ty.clone();
     let mut expr_fields = HashMap::new();
     let mut expr_field_names = HashSet::with_capacity(field_values.size_hint().0);
 
@@ -177,7 +179,9 @@ pub fn check_records<'a>(
 
         let expr_type = expr_field.0.infer(checker)?;
 
-        if expr_type != field.1 {
+        if let check::Type::Variable(variable) = &field.1 {
+            inferred_ty = inferred_ty.substitute(variable, &expr_type);
+        } else if expr_type != field.1 {
             return Err(Error::type_mismatch()
                 .with_detail(
                     &format!(
@@ -210,5 +214,5 @@ pub fn check_records<'a>(
             .finish());
     }
 
-    Ok(())
+    Ok(inferred_ty)
 }

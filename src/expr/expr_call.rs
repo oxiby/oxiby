@@ -177,8 +177,8 @@ pub fn infer_function<'a>(
             EitherOrBoth::Both(ty, expr) => {
                 let expr_ty = expr.infer(checker)?;
 
-                if let check::Type::Variable(_ty_var) = ty {
-                    // dbg!(ty, ty_var, expr);
+                if let check::Type::Variable(_) = ty {
+                    // TODO: Infer generics.
                 } else if *ty != expr_ty {
                     return Err(Error::type_mismatch()
                         .with_detail(

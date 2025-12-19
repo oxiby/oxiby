@@ -5,7 +5,7 @@ use chumsky::span::SimpleSpan;
 use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
-use crate::expr::{Expr, ExprIdent, Noun, check_records, infer_function};
+use crate::expr::{Expr, ExprIdent, Noun, infer_from_records, infer_function};
 use crate::token::Token;
 use crate::types::TypeIdent;
 
@@ -154,6 +154,8 @@ impl Infer for ExprEnum {
                         )
                         .finish());
                 }
+
+                Ok(ty.clone())
             }
             EnumConstructor::Tuple(fields) => {
                 let check::Type::Fn(function) = variant_ty else {
@@ -180,7 +182,7 @@ impl Infer for ExprEnum {
                         .finish());
                 };
 
-                infer_function(checker, function, fields.iter(), self.span, Noun::Variant)?;
+                infer_function(checker, function, fields.iter(), self.span, Noun::Variant)
             }
             EnumConstructor::Struct(records) => {
                 let check::Type::RecordStruct { fields, .. } = variant_ty else {
@@ -207,19 +209,17 @@ impl Infer for ExprEnum {
                         .finish());
                 };
 
-                check_records(
+                infer_from_records(
                     checker,
+                    &ty,
                     variant_name,
                     fields.iter(),
                     records.iter(),
                     self.span,
                     true,
-                )?;
+                )
             }
         }
-
-        // TODO: Return real type.
-        Ok(ty.clone())
     }
 }
 

@@ -64,7 +64,7 @@ pub use expr_parenthesized::ExprParenthesized;
 pub use expr_range::ExprRange;
 pub use expr_return::ExprReturn;
 pub use expr_string::ExprString;
-pub use expr_struct::{ExprStruct, check_records};
+pub use expr_struct::{ExprStruct, infer_from_records};
 pub use expr_tuple::ExprTuple;
 pub use expr_unary::ExprUnary;
 pub use expr_while_loop::ExprWhileLoop;
