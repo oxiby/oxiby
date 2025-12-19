@@ -40,6 +40,7 @@ const RUBY_KEYWORDS: &[&str] = &[
 pub enum Token {
     // Keywords
     Arrow,
+    At,
     Break,
     Continue,
     Else,
@@ -119,6 +120,7 @@ impl Display for Token {
         match self {
             // Keywords
             Self::Arrow => write!(f, "->"),
+            Self::At => write!(f, "@"),
             Self::Break => write!(f, "break"),
             Self::Continue => write!(f, "continue"),
             Self::Else => write!(f, "else"),
@@ -290,6 +292,7 @@ pub fn lexer<'src>()
         just(';').to(Token::Semicolon),
         just(',').to(Token::Comma),
         just('.').to(Token::Dot),
+        just('@').to(Token::At),
     ));
 
     let ruby = just("ruby")

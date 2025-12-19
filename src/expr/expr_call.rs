@@ -49,7 +49,7 @@ impl ExprCall {
             .map(|(ident, expr)| FnArg::Kw(ident, expr));
 
         choice((
-            ExprIdent::parser().map(CallIdent::Expr),
+            ExprIdent::intrinsic_parser().map(CallIdent::Expr),
             TypeIdent::parser().map(CallIdent::Type),
         ))
         .then(
@@ -278,6 +278,7 @@ fn resolve_closure<'a>(
 impl Infer for ExprCall {
     fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
         let name = self.name.as_str();
+        let is_intrinsic = self.name.is_intrinsic();
 
         if let Some(ty) = checker.get_contextual(name) {
             match ty {
@@ -320,6 +321,10 @@ impl Infer for ExprCall {
             (ty.clone(), Some(members.clone()))
         } else if let Some(ty) = checker.get_value_constructor(name) {
             (ty.clone(), None)
+        } else if is_intrinsic {
+            return Err(Error::build("Invalid call")
+                .with_detail("Compiler intrinsics are unstable.", self.name.span())
+                .finish());
         } else {
             return Err(Error::build("Unknown function")
                 .with_detail(
@@ -386,6 +391,13 @@ impl CallIdent {
         match self {
             Self::Expr(ident) => ident.as_str(),
             Self::Type(ident) => ident.as_str(),
+        }
+    }
+
+    pub fn is_intrinsic(&self) -> bool {
+        match self {
+            Self::Expr(expr_ident) => expr_ident.is_intrinsic(),
+            Self::Type(_) => false,
         }
     }
 
