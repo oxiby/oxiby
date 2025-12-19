@@ -602,7 +602,10 @@ pub fn match_bindings(
                 }
                 (
                     CtorFields::Struct(pattern_fields),
-                    check::Type::RecordStruct(ty_ctor, ty_fields),
+                    check::Type::RecordStruct {
+                        name: ty_ctor,
+                        fields: ty_fields,
+                    },
                 ) => {
                     let mut seen_fields = HashSet::new();
 

@@ -166,7 +166,7 @@ impl Infer for ExprEnum {
                             self.span,
                         )
                         .with_help(
-                            &(if matches!(variant_ty, check::Type::RecordStruct(_, _)) {
+                            &(if matches!(variant_ty, check::Type::RecordStruct { .. }) {
                                 format!(
                                     "Try using record variant syntax: `{variant_name} {{ ... }}`"
                                 )
@@ -183,7 +183,7 @@ impl Infer for ExprEnum {
                 infer_function(checker, function, fields.iter(), self.span, Noun::Variant)?;
             }
             EnumConstructor::Struct(records) => {
-                let check::Type::RecordStruct(_variant_name_ty, fields) = variant_ty else {
+                let check::Type::RecordStruct { fields, .. } = variant_ty else {
                     return Err(Error::build("Invalid enum variant literal")
                         .with_detail(
                             &format!(

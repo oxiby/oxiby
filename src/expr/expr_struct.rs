@@ -101,7 +101,7 @@ impl Infer for ExprStruct {
                 .finish());
         };
 
-        let check::Type::RecordStruct(ty, fields) = ty else {
+        let check::Type::RecordStruct { name: ty, fields } = ty else {
             return Err(Error::build("Invalid struct literal")
                 .with_detail(
                     &format!(

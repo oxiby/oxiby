@@ -195,7 +195,6 @@ impl Checker {
         type_var
     }
 
-    #[expect(dead_code)]
     pub fn substitute(&mut self, target: &Type, variable: &str, replacement: &Type) -> Type {
         let Some((_ty, members)) = self
             .current_module()
@@ -351,13 +350,13 @@ impl Checker {
                         )),
                     );
                 } else if let Some(fields) = item_struct.record_fields() {
-                    ty = Type::RecordStruct(
-                        Box::new(ty),
-                        fields
+                    ty = Type::RecordStruct {
+                        name: Box::new(ty),
+                        fields: fields
                             .iter()
                             .map(|field| (field.name.to_string(), field.ty.clone().into()))
                             .collect(),
-                    );
+                    };
                 }
 
                 if let Some(functions) = &item_struct.fns {
@@ -416,8 +415,10 @@ impl Checker {
                                 .map(|record| (record.name.to_string(), record.ty.clone().into()))
                                 .collect();
 
-                            let variant_ty =
-                                Type::RecordStruct(Box::new(Type::constructor(&name)), fields);
+                            let variant_ty = Type::RecordStruct {
+                                name: Box::new(Type::constructor(&name)),
+                                fields,
+                            };
 
                             members.add_value_constructor(&name, variant_ty);
                         }

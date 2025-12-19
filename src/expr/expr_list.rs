@@ -30,10 +30,10 @@ impl Infer for ExprList {
         let (inferred, span) = match self.exprs.first() {
             Some(expr) => (expr.infer(checker)?, expr.span()),
             None => {
-                return Ok(check::Type::Generic(
-                    Box::new(check::Type::constructor("List")),
-                    vec![check::Type::unit()],
-                ));
+                return Ok(check::Type::Generic {
+                    name: Box::new(check::Type::constructor("List")),
+                    params: vec![check::Type::unit()],
+                });
             }
         };
 
@@ -55,9 +55,9 @@ impl Infer for ExprList {
             }
         }
 
-        Ok(check::Type::Generic(
-            Box::new(check::Type::constructor("List")),
-            vec![inferred],
-        ))
+        Ok(check::Type::Generic {
+            name: Box::new(check::Type::constructor("List")),
+            params: vec![inferred],
+        })
     }
 }

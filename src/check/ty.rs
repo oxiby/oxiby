@@ -10,10 +10,16 @@ use crate::module::Module;
 pub enum Type {
     Primitive(PrimitiveType),
     Constructor(String),
-    Generic(Box<Type>, Vec<Type>),
+    Generic {
+        name: Box<Type>,
+        params: Vec<Type>,
+    },
     Variable(String),
     Tuple(Vec<Type>),
-    RecordStruct(Box<Type>, Vec<(String, Type)>),
+    RecordStruct {
+        name: Box<Type>,
+        fields: Vec<(String, Type)>,
+    },
     Fn(Function),
     Import {
         module_name: String,
@@ -67,15 +73,17 @@ impl Type {
     }
 
     pub fn list() -> Self {
-        Self::Generic(
-            Box::new(Self::constructor("List")),
-            vec![Self::variable("t")],
-        )
+        Self::Generic {
+            name: Box::new(Self::constructor("List")),
+            params: vec![Self::variable("t")],
+        }
     }
 
     #[expect(dead_code)]
     pub fn is_list(&self) -> bool {
-        if let Self::Generic(constructor, _) = self
+        if let Self::Generic {
+            name: constructor, ..
+        } = self
             && let Self::Constructor(ref name) = **constructor
             && name == "List"
         {
@@ -96,7 +104,7 @@ impl Type {
         match self {
             Self::Primitive(primitive_type) => primitive_type.to_string(),
             Self::Constructor(name) => name.clone(),
-            Self::Generic(ty, _) | Self::RecordStruct(ty, _) => ty.to_string(),
+            Self::Generic { name, .. } | Self::RecordStruct { name, .. } => name.to_string(),
             Self::Variable(variable) => variable.clone(),
             Self::Tuple(_) => "<tuple name placeholder>".to_string(),
             Self::Fn(_) => "<function name placeholder>".to_string(),
@@ -125,8 +133,8 @@ impl Type {
         match self {
             Self::Primitive(primitive_type) => primitive_type.to_string(),
             Self::Constructor(name) => name.clone(),
-            ty @ Self::Generic(..) => ty.to_string(),
-            Self::RecordStruct(ty, _) => ty.to_string(),
+            ty @ Self::Generic { .. } => ty.to_string(),
+            Self::RecordStruct { name, .. } => name.to_string(),
             Self::Variable(variable) => variable.clone(),
             Self::Tuple(_) => "<tuple name placeholder>".to_string(),
             Self::Fn(_) => "<function name placeholder>".to_string(),
@@ -243,7 +251,16 @@ impl Type {
             (Self::Variable(a), Self::Variable(b)) if a == b => true,
 
             // Generics
-            (Self::Generic(t, t_params), Self::Generic(u, u_params)) if t == u => {
+            (
+                Self::Generic {
+                    name: t,
+                    params: t_params,
+                },
+                Self::Generic {
+                    name: u,
+                    params: u_params,
+                },
+            ) if t == u => {
                 for (t_param, u_param) in t_params.iter().zip(u_params.iter()) {
                     if !t_param.is_subtype_of(u_param) {
                         return false;
@@ -265,7 +282,7 @@ impl Type {
         let mut substituted = self.clone();
 
         match substituted {
-            Self::Generic(ref mut _ty, ref mut params) => {
+            Self::Generic { ref mut params, .. } => {
                 for param in params {
                     if matches!(param, Type::Variable(name) if name == variable) {
                         *param = replacement.clone();
@@ -287,10 +304,10 @@ impl Display for Type {
         let s = match self {
             Self::Primitive(primitive_type) => &format!("{primitive_type}"),
             Self::Constructor(name) => name,
-            Self::Generic(ty, ty_vars) => &format!(
+            Self::Generic { name, params } => &format!(
                 "{}<{}>",
-                ty,
-                ty_vars
+                name,
+                params
                     .iter()
                     .map(ToString::to_string)
                     .collect::<Vec<_>>()
@@ -305,7 +322,7 @@ impl Display for Type {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Self::RecordStruct(ty, _) => &format!("{ty}",),
+            Self::RecordStruct { name, .. } => &format!("{name}",),
             Self::Fn(func) => match &func.name {
                 Some(name) => &format!("<function \"{name}\">"),
                 None => "<function>",
@@ -347,10 +364,10 @@ impl From<crate::types::Type> for Type {
                     let constructor = Self::constructor(name.to_string());
 
                     if let Some(params) = concrete_type.params {
-                        Self::Generic(
-                            Box::new(constructor),
-                            params.iter().cloned().map(Into::into).collect(),
-                        )
+                        Self::Generic {
+                            name: Box::new(constructor),
+                            params: params.iter().cloned().map(Into::into).collect(),
+                        }
                     } else {
                         constructor
                     }

@@ -37,10 +37,10 @@ impl Infer for ExprMap {
                 value.span(),
             ),
             None => {
-                return Ok(check::Type::Generic(
-                    Box::new(check::Type::constructor("Map")),
-                    vec![check::Type::variable("k"), check::Type::variable("v")],
-                ));
+                return Ok(check::Type::Generic {
+                    name: Box::new(check::Type::constructor("Map")),
+                    params: vec![check::Type::variable("k"), check::Type::variable("v")],
+                });
             }
         };
 
@@ -77,9 +77,9 @@ impl Infer for ExprMap {
             }
         }
 
-        Ok(check::Type::Generic(
-            Box::new(check::Type::constructor("Map")),
-            vec![inferred_key, inferred_value],
-        ))
+        Ok(check::Type::Generic {
+            name: Box::new(check::Type::constructor("Map")),
+            params: vec![inferred_key, inferred_value],
+        })
     }
 }

@@ -177,7 +177,9 @@ pub fn infer_function<'a>(
             EitherOrBoth::Both(ty, expr) => {
                 let expr_ty = expr.infer(checker)?;
 
-                if !ty.is_variable() && *ty != expr_ty {
+                if let check::Type::Variable(_ty_var) = ty {
+                    // dbg!(ty, ty_var, expr);
+                } else if *ty != expr_ty {
                     return Err(Error::type_mismatch()
                         .with_detail(
                             &format!("Argument was expected to be `{ty}` but was `{expr_ty}`."),
@@ -422,7 +424,7 @@ impl Infer for ExprCall {
                         self.span,
                     )
                     .with_help(
-                        &(if matches!(ty, check::Type::RecordStruct(_, _)) {
+                        &(if matches!(ty, check::Type::RecordStruct { .. }) {
                             format!("Try using record struct syntax: `{ty} {{ ... }}`")
                         } else {
                             format!(

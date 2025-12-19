@@ -26,7 +26,11 @@ impl Infer for ExprIndex {
         let expr_ty = self.expr.infer(checker)?;
         let index_ty = (*self.index).infer(checker)?;
 
-        if let check::Type::Generic(generic_ty, ty_params) = expr_ty.clone() {
+        if let check::Type::Generic {
+            name: generic_ty,
+            params: ty_params,
+        } = expr_ty.clone()
+        {
             match *generic_ty {
                 check::Type::Constructor(name) if name == "List" => match index_ty {
                     check::Type::Primitive(check::PrimitiveType::Integer) => {

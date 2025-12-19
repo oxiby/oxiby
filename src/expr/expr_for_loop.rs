@@ -72,7 +72,10 @@ impl WriteRuby for ExprForLoop {
 impl Infer for ExprForLoop {
     fn infer(&self, checker: &mut Checker) -> Result<check::Type, Error> {
         let element_type = match self.items.infer(checker)? {
-            ref items_type @ check::Type::Generic(ref constructor_type, ref generic_types) => {
+            ref items_type @ check::Type::Generic {
+                name: ref constructor_type,
+                params: ref generic_types,
+            } => {
                 let name = constructor_type.base_name();
                 if name == "List" {
                     vec![generic_types[0].clone()]
