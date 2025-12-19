@@ -283,7 +283,7 @@ impl Infer for ExprCall {
         if let Some(ty) = checker.get_contextual(name) {
             match ty {
                 check::Type::Fn(mut function) => {
-                    if function.has_name() {
+                    if !function.has_name() {
                         checker.mark_closure(self.span);
                     }
 
