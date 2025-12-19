@@ -7,6 +7,14 @@ use crate::check::{self, Checker, Infer};
 use crate::compiler::{Scope, WriteRuby};
 use crate::error::Error;
 use crate::expr::{Expr, ExprIdent};
+use crate::intrinsic::{
+    instance_method_call,
+    nullable_instance_method_call,
+    nullable_static_method_call,
+    require_str,
+    static_method_call,
+    wrap,
+};
 use crate::token::Token;
 use crate::types::TypeIdent;
 
@@ -125,6 +133,11 @@ impl ExprCall {
     pub fn has_keyword_args(&self) -> bool {
         !self.keyword_args.is_empty()
     }
+
+    #[inline]
+    pub fn is_intrinsic(&self) -> bool {
+        self.name.is_intrinsic()
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -217,6 +230,64 @@ pub fn infer_function<'a>(
 
 impl WriteRuby for ExprCall {
     fn write_ruby(&self, scope: &mut Scope) {
+        if self.is_intrinsic() {
+            match self.name.as_str() {
+                "instance_method_call" => instance_method_call(
+                    scope,
+                    self.positional_args.first().expect(
+                        "@instance_method_call requires an expression as the first argument",
+                    ),
+                    &require_str(self.positional_args.get(1).expect(
+                        "@instance_method_call requires a method name as the second argument",
+                    )),
+                    &self.positional_args[2..],
+                ),
+                "nullable_instance_method_call" => nullable_instance_method_call(
+                    scope,
+                    self.positional_args.first().expect(
+                        "@nullable_instance_method_call requires an expression as the first \
+                         argument",
+                    ),
+                    &require_str(self.positional_args.get(1).expect(
+                        "@nullable_instance_method_call requires a method name as the second \
+                         argument",
+                    )),
+                    &self.positional_args[2..],
+                ),
+                "static_method_call" => static_method_call(
+                    scope,
+                    &require_str(self.positional_args.first().expect(
+                        "@static_method_call requires a receiver name as the first argument",
+                    )),
+                    &require_str(self.positional_args.get(1).expect(
+                        "@static_method_call requires a method name as the second argument",
+                    )),
+                    &self.positional_args[2..],
+                ),
+                "nullable_static_method_call" => nullable_static_method_call(
+                    scope,
+                    &require_str(self.positional_args.first().expect(
+                        "@nullable_static_method_call requires a receiver name as the first \
+                         argument",
+                    )),
+                    &require_str(self.positional_args.get(1).expect(
+                        "@nullable_static_method_call requires a method name as the second \
+                         argument",
+                    )),
+                    &self.positional_args[2..],
+                ),
+                "wrap" => wrap(
+                    scope,
+                    self.positional_args
+                        .first()
+                        .expect("@wrap should provide a closure as the first argument"),
+                ),
+                name => panic!("Unknown compiler intrinsic `{name}`."),
+            }
+
+            return;
+        }
+
         // If this call is a field, render its name without going through import resolution so it
         // doesn't get confused with a free function of the same name.
         if self.is_field {

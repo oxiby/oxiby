@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use chumsky::input::MappedInput;
 use chumsky::prelude::*;
 use chumsky::span::SimpleSpan;
@@ -82,5 +84,20 @@ impl WriteRuby for ExprStringPart {
                 scope.fragment("}");
             }
         }
+    }
+}
+
+impl Display for ExprString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut out = String::new();
+
+        for part in &self.parts {
+            match part {
+                ExprStringPart::Literal(s) => out.push_str(s),
+                ExprStringPart::Expr(_) => out.push_str("#{expr}"),
+            }
+        }
+
+        write!(f, "{out}")
     }
 }

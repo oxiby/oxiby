@@ -9,6 +9,7 @@ mod cli;
 mod compiler;
 mod error;
 mod expr;
+mod intrinsic;
 mod item;
 mod module;
 mod pattern;

@@ -3,23 +3,36 @@ pub trait ToString {
 }
 
 pub fn print_line(s: s) where s is ToString {
-    if s.public_send("respond_to?", "to_string") {
-        puts(s.to_string())
+    let formatted = if respond_to_string(s) {
+        s_to_string(s)
     } else {
-        puts(s)
+        s
     }
+
+    @static_method_call("Kernel", "puts", formatted)
+}
+
+fn respond_to_string(s: s) -> bool {
+    @instance_method_call(s, "respond_to?", "to_string")
+}
+
+fn s_to_string(s: s) -> String {
+    @instance_method_call(s, "to_string")
 }
 
 pub fn print(s: s) where s is ToString {
-    Kernel.print(s)
+    @static_method_call("Kernel", "print", s)
 }
 
 pub fn read_line() -> Result<String, String> {
-    let input = gets()
+    let input = get_string()
 
-    if ruby { input.nil? } {
-        Err("no input was received")
-    } else {
-        Ok(input)
+    match input {
+        Some(input) -> Ok(input),
+        None -> Err("no input was received"),
     }
+}
+
+fn get_string() -> Option<String> {
+    @nullable_static_method_call("Kernel", "gets")
 }
