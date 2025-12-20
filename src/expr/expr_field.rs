@@ -157,7 +157,31 @@ impl Infer for ExprField {
                     Noun::Function,
                 )?
             }
-            _ => todo!("TODO: Unhandled ExprField RHS"),
+            Expr::ExprIdent(expr_ident) => {
+                let check::Type::RecordStruct { name, fields } = lhs_ty else {
+                    return Err(Error::build("Unknown field")
+                        .with_detail(
+                            &format!("Type `{lhs_ty}` has no field `{expr_ident}`."),
+                            expr_ident.span,
+                        )
+                        .finish());
+                };
+
+                let Some((_field_name, field_ty)) = fields
+                    .iter()
+                    .find(|(field_name, _field_ty)| field_name == expr_ident.as_str())
+                else {
+                    return Err(Error::build("Unknown field")
+                        .with_detail(
+                            &format!("Struct `{name}` has no field `{expr_ident}`."),
+                            expr_ident.span,
+                        )
+                        .finish());
+                };
+
+                field_ty.clone()
+            }
+            expr => todo!("TODO: Unhandled ExprField RHS: {expr:#?}"),
         };
 
         Ok(rhs_ty)
