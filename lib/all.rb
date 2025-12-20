@@ -1,3 +1,4 @@
+require_relative "convert"
 require_relative "fs"
 require_relative "io"
 require_relative "list"

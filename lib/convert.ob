@@ -1,0 +1,11 @@
+use std.result Result
+
+pub fn parse_integer(s: String) -> Result<String, String> {
+    @wrap(fn () {
+        parse_integer_inner(s)
+    })
+}
+
+fn parse_integer_inner(s: String) -> String {
+    @static_method_call("Kernel", "Integer", s)
+}

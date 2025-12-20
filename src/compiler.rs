@@ -21,7 +21,8 @@ static STD_RB: [[&str; 2]; 6] = [
     ["tuple.rb", include_str!("../lib/tuple.rb")],
 ];
 
-static STD_OB: [[&str; 2]; 6] = [
+static STD_OB: [[&str; 2]; 7] = [
+    ["convert", include_str!("../lib/convert.ob")],
     ["fs", include_str!("../lib/fs.ob")],
     ["io", include_str!("../lib/io.ob")],
     ["list", include_str!("../lib/list.ob")],

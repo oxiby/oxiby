@@ -1,3 +1,4 @@
+use std.convert parse_integer
 use std.io read_line
 
 enum Player {
@@ -120,7 +121,7 @@ fn main() {
         loop {
             print("It's #{game.player}'s turn. Enter the cell to play (1-9): ")
 
-            match read_line().map(fn (s) { s.to_i() }) {
+            match read_line().map(fn (s) { parse_integer(s) }) {
                 Ok(cell) -> {
                     if game.choose(cell = cell, player = game.player) {
                         game.player = match game.player {
