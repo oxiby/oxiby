@@ -426,6 +426,12 @@ impl Checker {
                     }
                 }
 
+                for function in &item_enum.fns {
+                    let (name, func) = collect_fn(function)?;
+
+                    members.add_function(&name, func);
+                }
+
                 self.current_module_mut()
                     .add_type_constructor(&ty.base_name(), (ty, members));
             }
