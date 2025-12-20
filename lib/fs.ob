@@ -1,3 +1,5 @@
+use std.result Result
+
 pub fn read_file(path: String) -> Result<String, String> {
     @wrap(fn () {
         read_file_inner(path)

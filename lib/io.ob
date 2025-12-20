@@ -1,3 +1,6 @@
+use std.result Result, Ok, Err
+use std.option Some, None
+
 pub trait ToString {
     fn to_string(self) -> String
 }

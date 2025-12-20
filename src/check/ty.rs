@@ -645,8 +645,8 @@ impl ModuleTypes {
     pub fn new(module: Module) -> Self {
         let is_entry_module = module.is_entry_module();
         let mut type_constructors = HashMap::new();
-        let mut value_constructors = HashMap::new();
-        let mut functions = HashMap::new();
+        let value_constructors = HashMap::new();
+        let functions = HashMap::new();
 
         type_constructors.insert("Boolean".to_owned(), (Type::boolean(), TypeMembers::new()));
         type_constructors.insert("Float".to_owned(), (Type::float(), TypeMembers::new()));
@@ -656,42 +656,6 @@ impl ModuleTypes {
 
         let list_ty = Type::list();
         type_constructors.insert(list_ty.base_name(), (list_ty, TypeMembers::new()));
-
-        if !module.is_std() {
-            functions.insert(
-                "print_line".to_string(),
-                Type::import("std.io", "print_line"),
-            );
-            functions.insert("print".to_string(), Type::import("std.io", "print"));
-            type_constructors.insert(
-                "List".to_string(),
-                (Type::import("std.list", "List"), TypeMembers::new()),
-            );
-            type_constructors.insert(
-                "Option".to_string(),
-                (Type::import("std.option", "Option"), TypeMembers::new()),
-            );
-            value_constructors.insert(
-                "Some".to_string(),
-                Type::import_variant("std.option", "Option", "Some"),
-            );
-            value_constructors.insert(
-                "None".to_string(),
-                Type::import_variant("std.option", "Option", "None"),
-            );
-            type_constructors.insert(
-                "Result".to_string(),
-                (Type::import("std.result", "Result"), TypeMembers::new()),
-            );
-            value_constructors.insert(
-                "Ok".to_string(),
-                Type::import_variant("std.result", "Result", "Ok"),
-            );
-            value_constructors.insert(
-                "Err".to_string(),
-                Type::import_variant("std.result", "Result", "Err"),
-            );
-        }
 
         Self {
             module,
@@ -707,13 +671,17 @@ impl ModuleTypes {
         self.is_entry_module
     }
 
+    pub fn is_std(&self) -> bool {
+        self.module.is_std()
+    }
+
     pub fn get_type_constructor(&self, name: &str) -> Option<(&Type, &TypeMembers)> {
         self.type_constructors.get(name).map(|(ty, mem)| (ty, mem))
     }
 
     pub fn add_type_constructor<N>(&mut self, name: &N, contents: (Type, TypeMembers))
     where
-        N: ToString,
+        N: ToString + ?Sized,
     {
         self.type_constructors.insert(name.to_string(), contents);
     }
@@ -724,7 +692,7 @@ impl ModuleTypes {
 
     pub fn add_value_constructor<N>(&mut self, name: &N, ty: Type)
     where
-        N: ToString,
+        N: ToString + ?Sized,
     {
         self.value_constructors.insert(name.to_string(), ty);
     }
@@ -739,7 +707,7 @@ impl ModuleTypes {
 
     pub fn add_function<N>(&mut self, name: &N, ty: Type)
     where
-        N: ToString,
+        N: ToString + ?Sized,
     {
         self.functions.insert(name.to_string(), ty);
     }

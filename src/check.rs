@@ -240,10 +240,41 @@ impl Checker {
         seen_modules: &mut HashSet<ModulePath>,
     ) -> Result<(), Error> {
         let mut imported_modules: HashSet<ModulePath> = HashSet::new();
-        imported_modules.insert("std.io".into());
-        imported_modules.insert("std.list".into());
-        imported_modules.insert("std.option".into());
-        imported_modules.insert("std.result".into());
+
+        if !self.current_module().is_std() {
+            imported_modules.insert("std.io".into());
+            imported_modules.insert("std.list".into());
+            imported_modules.insert("std.option".into());
+            imported_modules.insert("std.result".into());
+
+            let current = self.current_module_mut();
+
+            current.add_function("print_line", Type::import("std.io", "print_line"));
+            current.add_function("print", Type::import("std.io", "print"));
+            current.add_type_constructor(
+                "List",
+                (Type::import("std.list", "List"), TypeMembers::new()),
+            );
+            current.add_type_constructor(
+                "Option",
+                (Type::import("std.option", "Option"), TypeMembers::new()),
+            );
+            current.add_value_constructor(
+                "Some",
+                Type::import_variant("std.option", "Option", "Some"),
+            );
+            current.add_value_constructor(
+                "None",
+                Type::import_variant("std.option", "Option", "None"),
+            );
+            current.add_type_constructor(
+                "Result",
+                (Type::import("std.result", "Result"), TypeMembers::new()),
+            );
+            current.add_value_constructor("Ok", Type::import_variant("std.result", "Result", "Ok"));
+            current
+                .add_value_constructor("Err", Type::import_variant("std.result", "Result", "Err"));
+        }
 
         for item in items {
             if let Item::Use(item_use) = item {
