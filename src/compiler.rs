@@ -12,10 +12,11 @@ use crate::module::{Module, ModulePath, RubyModuleConstants};
 use crate::stage::{check, parse};
 use crate::token::Token;
 
-static STD_RB: [[&str; 2]; 5] = [
+static STD_RB: [[&str; 2]; 6] = [
     ["all.rb", include_str!("../lib/all.rb")],
     ["map.rb", include_str!("../lib/map.rb")],
     ["range.rb", include_str!("../lib/range.rb")],
+    ["ruby.rb", include_str!("../lib/ruby.rb")],
     ["string.rb", include_str!("../lib/string.rb")],
     ["tuple.rb", include_str!("../lib/tuple.rb")],
 ];
