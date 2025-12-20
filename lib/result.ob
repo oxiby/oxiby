@@ -15,4 +15,11 @@ pub enum Result<t, e> {
             Err(_) -> default,
         }
     }
+
+    pub fn and_then(self, f: f) where f is Fn(t) -> Result<u, e> {
+        match self {
+            Ok(t) -> f.call(t),
+            Err(_) -> self,
+        }
+    }
 }
