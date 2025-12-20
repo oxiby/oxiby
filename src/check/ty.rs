@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
 use chumsky::span::SimpleSpan;
 
@@ -631,7 +631,7 @@ impl TypeMembers {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ModuleTypes {
     module: Module,
     is_entry_module: bool,
@@ -756,5 +756,19 @@ impl ModuleTypes {
         self.module.extend_closures(self.closures);
 
         self.module
+    }
+}
+
+// Manual impl of Debug so all the items in the module aren't printed.
+impl Debug for ModuleTypes {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("ModuleTypes")
+            .field("module", &self.module.to_string())
+            .field("is_entry_module", &self.is_entry_module)
+            .field("type_constructors", &self.type_constructors)
+            .field("value_constructors", &self.value_constructors)
+            .field("functions", &self.functions)
+            .field("closures", &self.closures)
+            .finish()
     }
 }
