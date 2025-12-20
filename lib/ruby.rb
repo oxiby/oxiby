@@ -7,13 +7,13 @@ module Std
       begin
         ok = block.call
       rescue => e
-        error e.to_s
+        error = e.to_s
       end
 
       if error.nil?
-        ::Std::Result::Result::Err.new(error)
-      else
         ::Std::Result::Result::Ok.new(ok)
+      else
+        ::Std::Result::Result::Err.new(error)
       end
     end
   end
