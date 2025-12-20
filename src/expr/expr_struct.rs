@@ -181,6 +181,59 @@ pub fn infer_from_records<'a>(
 
         if let check::Type::Variable(variable) = &field.1 {
             inferred_ty = inferred_ty.substitute(variable, &expr_type);
+        } else if let check::Type::Generic {
+            name: field_name_ty,
+            params: field_params,
+        } = &field.1
+        {
+            let check::Type::Generic {
+                name: expr_name_ty,
+                params: expr_params,
+            } = expr_type
+            else {
+                return Err(Error::type_mismatch()
+                    .with_detail(
+                        &format!("Expected generic type, but found type `{expr_type}`."),
+                        expr_field.1,
+                    )
+                    .finish());
+            };
+
+            if expr_name_ty != *field_name_ty {
+                return Err(Error::type_mismatch()
+                    .with_detail(
+                        &format!(
+                            "Expected a value of type `{field_name_ty}`, but found a value of \
+                             type `{expr_name_ty}`."
+                        ),
+                        expr_field.1,
+                    )
+                    .finish());
+            }
+
+            if expr_params.len() != field_params.len() {
+                return Err(Error::type_mismatch()
+                    .with_detail(
+                        &format!(
+                            "Expected {} type {}, but found {}.",
+                            field_params.len(),
+                            if field_params.len() == 1 {
+                                "parameter"
+                            } else {
+                                "parameters"
+                            },
+                            expr_params.len()
+                        ),
+                        expr_field.1,
+                    )
+                    .finish());
+            }
+
+            for (expr_param, _field_param) in expr_params.iter().zip(field_params.iter()) {
+                if let check::Type::Variable(_variable) = &expr_param {
+                    // TODO: Substitution
+                }
+            }
         } else if expr_type != field.1 {
             return Err(Error::type_mismatch()
                 .with_detail(
