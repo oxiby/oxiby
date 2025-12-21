@@ -1,5 +1,5 @@
-use std.result Result, Ok, Err
-use std.option Some, None
+use std.result Result, Result.Ok, Result.Err
+use std.option Option.Some, Option.None
 
 pub trait ToString {
     fn to_string(self) -> String
@@ -9,10 +9,16 @@ pub fn print_line(s: s) where s is ToString {
     let formatted = if respond_to_string(s) {
         s_to_string(s)
     } else {
-        s
+        hack(s)
     }
 
     @static_method_call("Kernel", "puts", formatted)
+}
+
+// Temporary hack to turn the type var in `print` and `print_line` into a string, until the type
+// checker can handle traits.
+fn hack(s: String) -> String {
+    s
 }
 
 fn respond_to_string(s: s) -> Boolean {
@@ -24,7 +30,13 @@ fn s_to_string(s: s) -> String {
 }
 
 pub fn print(s: s) where s is ToString {
-    @static_method_call("Kernel", "print", s)
+    let formatted = if respond_to_string(s) {
+        s_to_string(s)
+    } else {
+        hack(s)
+    }
+
+    @static_method_call("Kernel", "print", formatted)
 }
 
 pub fn read_line() -> Result<String, String> {
