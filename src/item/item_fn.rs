@@ -133,6 +133,10 @@ impl Infer for ItemFn {
             .clone()
             .map_or_else(check::Type::unit, Into::into);
 
+        if inferred == check::Type::Intrinsic {
+            return Ok(declared);
+        }
+
         if (self.signature.associated_fn || self.signature.name.as_str() != "main")
             && !declared.is_subtype_of(&inferred)
         {

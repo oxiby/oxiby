@@ -233,6 +233,10 @@ impl Checker {
             .expect("self.current_module should always be a valid key")
     }
 
+    pub fn is_current_module_std(&self) -> bool {
+        self.current_module().is_std()
+    }
+
     pub fn check(&mut self) -> Result<(), (ModulePath, Error)> {
         let mut seen_modules = HashSet::new();
 
@@ -243,9 +247,6 @@ impl Checker {
         .map_err(|error| (self.current_module().module_path().clone(), error))?;
 
         for module in seen_modules {
-            if module.is_std() {
-                continue;
-            }
             self.current_module = module.to_string();
             self.check_one(self.current_module().items().to_vec())
                 .map_err(|error| (self.current_module().module_path().clone(), error))?;

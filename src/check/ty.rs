@@ -27,6 +27,7 @@ pub enum Type {
         variant: Option<String>,
         rename: Option<String>,
     },
+    Intrinsic,
 }
 
 impl Type {
@@ -126,6 +127,7 @@ impl Type {
                     String::new()
                 },
             ),
+            Self::Intrinsic => "<compiler intrinsic>".to_string(),
         }
     }
 
@@ -156,6 +158,7 @@ impl Type {
                     String::new()
                 },
             ),
+            Self::Intrinsic => "<compiler intrinsic>".to_string(),
         }
     }
 
@@ -360,6 +363,7 @@ impl Display for Type {
                     String::new()
                 },
             ),
+            Self::Intrinsic => "<compiler intrinsic>",
         };
 
         write!(f, "{s}")
