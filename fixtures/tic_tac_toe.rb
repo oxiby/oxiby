@@ -185,7 +185,7 @@ module TicTacToe
       end
       loop do
         ::Std::Io.print("It's #{game.player}'s turn. Enter the cell to play (1-9): ")
-        case ::Std::Io.read_line.map(-> (s) { s.to_i })
+        case ::Std::Io.read_line.and_then(-> (s) { ::Std::Convert.parse_integer(s) })
         in ::Std::Result::Result::Ok(cell)
             if game.choose(cell: cell, player: game.player)
               game.player = case game.player
