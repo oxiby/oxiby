@@ -179,7 +179,10 @@ pub fn infer_function<'a>(
 
                 if let check::Type::Variable(_) = ty {
                     // TODO: Infer generics.
+                } else if let check::Type::Variable(_) = expr_ty {
+                    // TODO: Infer generics.
                 } else if *ty != expr_ty {
+                    dbg!(ty, &expr_ty);
                     return Err(Error::type_mismatch()
                         .with_detail(
                             &format!("Argument was expected to be `{ty}` but was `{expr_ty}`."),
