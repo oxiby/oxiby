@@ -206,15 +206,14 @@ impl Type {
                     .delimited_by(just(Token::LParen), just(Token::RParen))
                     .map(Self::Tuple),
                 TypeIdent::parser()
-                    .then_ignore(just(Token::LParen))
                     .then(
                         type_parser
                             .clone()
                             .separated_by(just(Token::Comma))
                             .collect::<Vec<_>>()
+                            .delimited_by(just(Token::LParen), just(Token::RParen))
                             .or_not(),
                     )
-                    .then_ignore(just(Token::RParen))
                     .then(
                         just(Token::Arrow)
                             .ignore_then(type_parser.clone())
