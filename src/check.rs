@@ -114,15 +114,21 @@ impl Checker {
         self.current_module_mut().mark_closure(span);
     }
 
-    pub fn debug(&self) {
-        eprintln!(
-            "{:#?}",
+    pub fn debug(&self, debug_std: bool) {
+        let modules = if debug_std {
+            self.modules
+                .clone()
+                .into_iter()
+                .collect::<HashMap<String, ModuleTypes>>()
+        } else {
             self.modules
                 .clone()
                 .into_iter()
                 .filter(|(name, _module_types)| !name.starts_with("std"))
                 .collect::<HashMap<String, ModuleTypes>>()
-        );
+        };
+
+        eprintln!("{modules:#?}");
     }
 
     pub fn into_modules(self) -> HashMap<ModulePath, Module> {

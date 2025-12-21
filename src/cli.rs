@@ -74,6 +74,7 @@ impl Build {
 struct Check {
     entry_file: PathBuf,
     debug: bool,
+    debug_std: bool,
 }
 
 pub fn run() -> Result<(), CliError> {
@@ -86,7 +87,8 @@ pub fn run() -> Result<(), CliError> {
                     .get_one::<PathBuf>("input")
                     .ok_or_else(|| CliError::message("Couldn't determine input path."))?
                     .clone(),
-                debug: sub_matches.get_flag("debug"),
+                debug: sub_matches.get_flag("debug-std") || sub_matches.get_flag("debug"),
+                debug_std: sub_matches.get_flag("debug-std"),
             })?;
         }
         Some(("build", sub_matches)) => {
@@ -248,6 +250,12 @@ fn command_check() -> Command {
                 .action(ArgAction::SetTrue)
                 .help("Print the state of the type checker"),
         )
+        .arg(
+            Arg::new("debug-std")
+                .long("debug-std")
+                .action(ArgAction::SetTrue)
+                .help("Include std modules in debug output (implies --debug)"),
+        )
         .arg(arg_input())
 }
 
@@ -346,6 +354,7 @@ fn run_check(chk: &Check) -> Result<(), CliError> {
         chk.entry_file.parent(),
         modules,
         chk.debug,
+        chk.debug_std,
     )
     .map_err(CliError::Source)?;
 
@@ -370,6 +379,7 @@ fn run_build(build: &Build) -> Result<(), CliError> {
             &build.entry_file,
             build.entry_file.parent(),
             modules,
+            false,
             false,
         )
         .map(|modules| {

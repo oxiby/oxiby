@@ -90,6 +90,7 @@ pub fn check(
     parent_path: Option<&Path>,
     mut modules: HashMap<ModulePath, Vec<Item>>,
     debug: bool,
+    debug_std: bool,
 ) -> Result<HashMap<ModulePath, Module>, Vec<ErrorWithSource>> {
     parse_all(source, path, parent_path, &mut modules, true)?;
 
@@ -117,7 +118,7 @@ pub fn check(
         .map_err(|error| vec![ErrorWithSource::from_error(path, source, error)]);
 
     if debug {
-        checker.debug();
+        checker.debug(debug_std);
     }
 
     result?;
