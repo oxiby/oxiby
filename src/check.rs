@@ -261,6 +261,7 @@ impl Checker {
         seen_modules: &mut HashSet<ModulePath>,
     ) -> Result<(), Error> {
         let mut imported_modules: HashSet<ModulePath> = HashSet::new();
+        imported_modules.insert(self.current_module().module_path().clone());
 
         let is_std = self.current_module().is_std();
         let current = self.current_module_mut();
