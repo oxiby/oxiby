@@ -15,7 +15,7 @@ pub fn print_line(s: s) where s is ToString {
     @static_method_call("Kernel", "puts", formatted)
 }
 
-fn respond_to_string(s: s) -> bool {
+fn respond_to_string(s: s) -> Boolean {
     @instance_method_call(s, "respond_to?", "to_string")
 }
 
