@@ -38,6 +38,7 @@ pub fn std_modules() -> HashMap<String, Module> {
         let module_path = [["std"], [name]].concat().as_slice().into();
         let module = Module::new(
             module_path,
+            source.to_string(),
             parse(source, &PathBuf::new()).expect("std library should always parse"),
         );
 

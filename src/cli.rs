@@ -386,9 +386,9 @@ fn run_build(build: &Build) -> Result<(), CliError> {
             modules
                 .into_iter()
                 .map(|(module_path, module)| {
-                    let (items, module_closures) = module.into_items_and_closures();
+                    let (source, items, module_closures) = module.into_parts();
                     closures.insert(module_path.clone(), module_closures);
-                    (module_path, items)
+                    (module_path, (source, items))
                 })
                 .collect()
         })
@@ -404,10 +404,10 @@ fn run_build(build: &Build) -> Result<(), CliError> {
         .map_err(CliError::Source)?;
     }
 
-    for (module_path, items) in modules {
+    for (module_path, source_and_items) in modules {
         let output = crate::compile_module(
             &module_path,
-            &items,
+            &source_and_items.1,
             closures.get(&module_path).unwrap().clone(),
         );
 

@@ -4,7 +4,7 @@ use std::fmt::{Debug, Display};
 use chumsky::span::SimpleSpan;
 
 use crate::item::Item;
-use crate::module::Module;
+use crate::module::{Module, ModulePath};
 
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub enum Type {
@@ -653,6 +653,14 @@ impl ModuleTypes {
             functions: HashMap::new(),
             closures: HashSet::new(),
         }
+    }
+
+    pub fn module(&self) -> &Module {
+        &self.module
+    }
+
+    pub fn module_path(&self) -> &ModulePath {
+        self.module.module_path()
     }
 
     pub fn is_entry_module(&self) -> bool {

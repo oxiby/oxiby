@@ -10,25 +10,35 @@ use crate::item::Item;
 #[derive(Clone, Debug)]
 pub struct Module {
     path: ModulePath,
+    source: String,
     items: Vec<Item>,
     closures: HashSet<SimpleSpan>,
 }
 
 impl Module {
-    pub fn new(path: ModulePath, items: Vec<Item>) -> Self {
+    pub fn new(path: ModulePath, source: String, items: Vec<Item>) -> Self {
         Self {
             path,
+            source,
             items,
             closures: HashSet::new(),
         }
+    }
+
+    pub fn module_path(&self) -> &ModulePath {
+        &self.path
+    }
+
+    pub fn source(&self) -> &str {
+        &self.source
     }
 
     pub fn items(&self) -> &[Item] {
         &self.items
     }
 
-    pub fn into_items_and_closures(self) -> (Vec<Item>, HashSet<SimpleSpan>) {
-        (self.items, self.closures)
+    pub fn into_parts(self) -> (String, Vec<Item>, HashSet<SimpleSpan>) {
+        (self.source, self.items, self.closures)
     }
 
     pub fn is_entry_module(&self) -> bool {

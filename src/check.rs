@@ -41,6 +41,10 @@ impl Checker {
         }
     }
 
+    pub fn module_source(&self, name: &'_ str) -> &str {
+        self.modules.get(name).unwrap().module().source()
+    }
+
     pub fn get_contextual(&self, name: &str) -> Option<Type> {
         for entry in self.context.iter().rev() {
             if let Entry::TermVar(var, ty) = entry
@@ -229,15 +233,25 @@ impl Checker {
             .expect("self.current_module should always be a valid key")
     }
 
-    pub fn check(&mut self) -> Result<(), Error> {
+    pub fn check(&mut self) -> Result<(), (ModulePath, Error)> {
         let mut seen_modules = HashSet::new();
 
         self.collect_declarations(
             self.current_module().items().to_vec().as_slice(),
             &mut seen_modules,
-        )?;
+        )
+        .map_err(|error| (self.current_module().module_path().clone(), error))?;
 
-        self.check_one(self.current_module().items().to_vec())
+        for module in seen_modules {
+            if module.is_std() {
+                continue;
+            }
+            self.current_module = module.to_string();
+            self.check_one(self.current_module().items().to_vec())
+                .map_err(|error| (self.current_module().module_path().clone(), error))?;
+        }
+
+        Ok(())
     }
 
     pub fn collect_declarations(
@@ -504,7 +518,6 @@ impl Checker {
             // Switch back to the original module.
             self.current_module = previous_module;
         }
-
         Ok(())
     }
 
