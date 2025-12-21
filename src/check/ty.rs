@@ -644,25 +644,13 @@ pub struct ModuleTypes {
 impl ModuleTypes {
     pub fn new(module: Module) -> Self {
         let is_entry_module = module.is_entry_module();
-        let mut type_constructors = HashMap::new();
-        let value_constructors = HashMap::new();
-        let functions = HashMap::new();
-
-        type_constructors.insert("Boolean".to_owned(), (Type::boolean(), TypeMembers::new()));
-        type_constructors.insert("Float".to_owned(), (Type::float(), TypeMembers::new()));
-        type_constructors.insert("Integer".to_owned(), (Type::integer(), TypeMembers::new()));
-        type_constructors.insert("String".to_owned(), (Type::string(), TypeMembers::new()));
-        type_constructors.insert("Range".to_owned(), (Type::range(), TypeMembers::new()));
-
-        let list_ty = Type::list();
-        type_constructors.insert(list_ty.base_name(), (list_ty, TypeMembers::new()));
 
         Self {
             module,
             is_entry_module,
-            type_constructors,
-            value_constructors,
-            functions,
+            type_constructors: HashMap::new(),
+            value_constructors: HashMap::new(),
+            functions: HashMap::new(),
             closures: HashSet::new(),
         }
     }

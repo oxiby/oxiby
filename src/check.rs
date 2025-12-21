@@ -247,13 +247,21 @@ impl Checker {
     ) -> Result<(), Error> {
         let mut imported_modules: HashSet<ModulePath> = HashSet::new();
 
-        if !self.current_module().is_std() {
+        let is_std = self.current_module().is_std();
+        let current = self.current_module_mut();
+
+        current.add_type_constructor("Boolean", (Type::boolean(), TypeMembers::new()));
+        current.add_type_constructor("Float", (Type::float(), TypeMembers::new()));
+        current.add_type_constructor("Integer", (Type::integer(), TypeMembers::new()));
+        current.add_type_constructor("String", (Type::string(), TypeMembers::new()));
+        current.add_type_constructor("Range", (Type::range(), TypeMembers::new()));
+        current.add_type_constructor("List", (Type::list(), TypeMembers::new()));
+
+        if !is_std {
             imported_modules.insert("std.io".into());
             imported_modules.insert("std.list".into());
             imported_modules.insert("std.option".into());
             imported_modules.insert("std.result".into());
-
-            let current = self.current_module_mut();
 
             current.add_function("print_line", Type::import("std.io", "print_line"));
             current.add_function("print", Type::import("std.io", "print"));
