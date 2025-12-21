@@ -5,6 +5,7 @@ use chumsky::span::{SimpleSpan, Span};
 use crate::error::Error;
 use crate::item::{ImportedIdent, Item, ItemFn, Variant};
 use crate::module::{Module, ModulePath};
+use crate::types;
 
 mod ty;
 
@@ -538,6 +539,23 @@ impl Checker {
                     .iter()
                     .chain(item_fn.signature.keyword_params.iter())
                 {
+                    if let types::Type::Variable(var_expr_ident) = &param.ty
+                        && let Some(constraints) = &item_fn.signature.constraints
+                        && let Some(constraint) = constraints.iter().find(|constraint| {
+                            if let types::TyVar::ExprIdent(param_expr_ident) = &constraint.tyvar {
+                                var_expr_ident.ident == param_expr_ident.ident
+                            } else {
+                                false
+                            }
+                        })
+                        && let Some(requirements) = &constraint.requirements
+                        && requirements
+                            .iter()
+                            .any(|requirement| matches!(requirement, types::Type::Fn(..)))
+                    {
+                        self.mark_closure(param.ident.span);
+                    }
+
                     self.push_term_var(param.ident.to_string(), param.ty.clone().into());
                 }
 
