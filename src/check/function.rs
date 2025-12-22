@@ -1,4 +1,5 @@
 use crate::check::Type;
+use crate::check::tr::Constraint;
 use crate::item::{ItemFn, Signature, TraitFn};
 
 #[derive(Clone, Debug, Hash, PartialEq)]
@@ -8,6 +9,7 @@ pub struct Function {
     positional_params: Vec<Type>,
     keyword_params: Vec<(String, Type)>,
     return_type: Box<Type>,
+    constraints: Vec<Constraint>,
 }
 
 impl Function {
@@ -27,6 +29,7 @@ impl Function {
             positional_params,
             keyword_params,
             return_type: Box::new(return_type),
+            constraints: Vec::new(),
         }
     }
     pub fn r#static(
@@ -41,6 +44,7 @@ impl Function {
             positional_params,
             keyword_params,
             return_type: Box::new(return_type),
+            constraints: Vec::new(),
         }
     }
 
@@ -57,6 +61,7 @@ impl Function {
             positional_params,
             keyword_params,
             return_type: Box::new(return_type),
+            constraints: Vec::new(),
         }
     }
 
@@ -127,23 +132,26 @@ impl Function {
 
 impl From<Signature> for Function {
     fn from(value: Signature) -> Self {
-        Self::new(
-            Some(value.name.to_string()),
-            !value.self_param,
-            value
+        Self {
+            name: Some(value.name.to_string()),
+            is_static: !value.self_param,
+            positional_params: value
                 .positional_params
                 .iter()
                 .cloned()
                 .map(|param| param.ty.into())
                 .collect(),
-            value
+            keyword_params: value
                 .keyword_params
                 .iter()
                 .cloned()
                 .map(|param| (param.ident.to_string(), param.ty.into()))
                 .collect(),
-            value.return_ty.clone().map_or_else(Type::unit, Into::into),
-        )
+            return_type: Box::new(value.return_ty.clone().map_or_else(Type::unit, Into::into)),
+            constraints: value.constraints.map_or_else(Vec::new, |constraints| {
+                constraints.into_iter().map(Into::into).collect()
+            }),
+        }
     }
 }
 

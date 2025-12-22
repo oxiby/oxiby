@@ -77,7 +77,7 @@ impl From<ItemImpl> for Impl {
 pub type TraitImpls = HashMap<String, Impl>;
 
 #[allow(dead_code)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 pub struct Constraint {
     variable: String,
     requirements: Vec<check::Type>,
