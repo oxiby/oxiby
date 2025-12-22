@@ -8,12 +8,13 @@ use crate::item::{ImportedIdent, Item, ItemFn, Variant};
 use crate::module::{Module, ModulePath};
 use crate::types;
 
+mod function;
 mod tr;
 mod ty;
 
+pub use function::Function;
 pub use tr::Trait;
-
-pub use self::ty::{Function, PrimitiveType, Type, TypeMembers, TypedModule};
+pub use ty::{PrimitiveType, Type, TypeMembers, TypedModule};
 
 pub trait Infer {
     fn infer(&self, checker: &mut Checker) -> Result<Type, Error>;
