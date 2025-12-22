@@ -9,11 +9,11 @@ use crate::types::{AssociatedType, Constraint, Type};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ItemTrait {
-    visibility: Visibility,
-    name: Type,
-    constraints: Option<Vec<Constraint>>,
-    associated_types: Option<Vec<AssociatedType>>,
-    functions: Vec<TraitFn>,
+    pub(crate) visibility: Visibility,
+    pub(crate) name: Type,
+    pub(crate) constraints: Option<Vec<Constraint>>,
+    pub(crate) associated_types: Option<Vec<AssociatedType>>,
+    pub(crate) functions: Vec<TraitFn>,
 }
 
 impl ItemTrait {

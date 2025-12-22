@@ -8,11 +8,11 @@ use crate::types::{AssociatedType, Constraint, Type};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ItemImpl {
-    name: Type,
-    target: Type,
-    constraints: Option<Vec<Constraint>>,
-    associated_types: Option<Vec<AssociatedType>>,
-    functions: Vec<ItemFn>,
+    pub(crate) name: Type,
+    pub(crate) target: Type,
+    pub(crate) constraints: Option<Vec<Constraint>>,
+    pub(crate) associated_types: Option<Vec<AssociatedType>>,
+    pub(crate) functions: Vec<ItemFn>,
 }
 
 impl ItemImpl {

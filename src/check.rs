@@ -2,14 +2,18 @@ use std::collections::{HashMap, HashSet};
 
 use chumsky::span::{SimpleSpan, Span};
 
+use crate::check::tr::Impl;
 use crate::error::Error;
 use crate::item::{ImportedIdent, Item, ItemFn, Variant};
 use crate::module::{Module, ModulePath};
 use crate::types;
 
+mod tr;
 mod ty;
 
-pub use self::ty::{Function, TypedModule, PrimitiveType, Type, TypeMembers};
+pub use tr::Trait;
+
+pub use self::ty::{Function, PrimitiveType, Type, TypeMembers, TypedModule};
 
 pub trait Infer {
     fn infer(&self, checker: &mut Checker) -> Result<Type, Error>;
@@ -496,6 +500,19 @@ impl Checker {
 
                 self.current_module_mut()
                     .add_type_constructor(&ty.base_name(), (ty, members));
+            } else if let Item::Trait(item_trait) = item {
+                let trt: Trait = item_trait.clone().into();
+
+                self.current_module_mut().add_trait(&trt.base_name(), trt);
+            } else if let Item::Impl(item_impl) = item {
+                let imp: Impl = item_impl.clone().into();
+
+                let (_tr, impls) = self
+                    .current_module_mut()
+                    .get_trait_mut(&imp.ty_base_name())
+                    .expect("TODO: What happens if an impl is collected before the type?");
+
+                impls.insert(imp.target_base_name(), imp);
             }
         }
 
@@ -568,41 +585,22 @@ impl Checker {
 }
 
 fn collect_fn(item_fn: &ItemFn) -> Result<(String, Type), Error> {
-    let pos: Vec<_> = item_fn
-        .signature
-        .positional_params
-        .iter()
-        .cloned()
-        .map(|param| param.ty.into())
-        .collect();
+    let function: Function = item_fn.clone().into();
 
-    let kw: Vec<_> = item_fn
-        .signature
-        .keyword_params
-        .iter()
-        .cloned()
-        .map(|param| (param.ident.to_string(), param.ty.into()))
-        .collect();
-
-    let ret = item_fn
-        .signature
-        .return_ty
-        .clone()
-        .map_or_else(Type::unit, Into::into);
-
-    let name = item_fn.signature.name.to_string();
-
-    let is_static = !item_fn.signature.self_param;
-
-    if name == "main" && !(pos.is_empty() && kw.is_empty() && ret.is_unit()) {
+    if let Some(name) = function.name()
+        && name == "main"
+        && (function.has_positional_params()
+            || function.has_keyword_params()
+            || !function.return_type().is_unit())
+    {
         let mut error = Error::build("Invalid signature for `main`").with_detail(
             "The `main` function cannot have input or output.",
             item_fn.signature.span,
         );
 
-        if !pos.is_empty() {
+        if function.has_positional_params() {
             error = error.with_context(
-                if pos.len() == 1 {
+                if function.positional_params_count() == 1 {
                     "This positional parameter is not allowed."
                 } else {
                     "These positional parameters are not allowed."
@@ -617,9 +615,9 @@ fn collect_fn(item_fn: &ItemFn) -> Result<(String, Type), Error> {
             );
         }
 
-        if !kw.is_empty() {
+        if function.has_keyword_params() {
             error = error.with_context(
-                if kw.len() == 1 {
+                if function.keyword_params_count() == 1 {
                     "This keyword parameter is not allowed."
                 } else {
                     "These keyword parameters are not allowed."
@@ -634,7 +632,7 @@ fn collect_fn(item_fn: &ItemFn) -> Result<(String, Type), Error> {
             );
         }
 
-        if !ret.is_unit() {
+        if !function.return_type().is_unit() {
             error = error.with_context(
                 "Must be `()` or explicit return type must be omitted.",
                 item_fn
@@ -651,7 +649,10 @@ fn collect_fn(item_fn: &ItemFn) -> Result<(String, Type), Error> {
     }
 
     Ok((
-        name.clone(),
-        Type::Fn(Function::new(name, is_static, pos, kw, ret)),
+        function
+            .name()
+            .expect("collect_fn should be called on a named function")
+            .to_string(),
+        Type::Fn(function),
     ))
 }

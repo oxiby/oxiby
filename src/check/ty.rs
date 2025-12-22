@@ -3,7 +3,8 @@ use std::fmt::{Debug, Display};
 
 use chumsky::span::SimpleSpan;
 
-use crate::item::Item;
+use crate::check::tr::{Trait, TraitImpls};
+use crate::item::{Item, ItemFn, Signature, TraitFn};
 use crate::module::{Module, ModulePath};
 
 #[derive(Debug, Clone, Hash, PartialEq)]
@@ -418,6 +419,14 @@ impl From<crate::types::Type> for Type {
     }
 }
 
+impl From<ItemFn> for Type {
+    fn from(value: ItemFn) -> Self {
+        let function: Function = value.into();
+
+        Self::Fn(function)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq)]
 pub enum PrimitiveType {
     Boolean,
@@ -512,6 +521,10 @@ impl Function {
         self.is_static
     }
 
+    pub fn has_positional_params(&self) -> bool {
+        !self.positional_params.is_empty()
+    }
+
     pub fn positional_params_count(&self) -> usize {
         self.positional_params.len()
     }
@@ -526,6 +539,14 @@ impl Function {
 
     pub fn positional_params_mut(&mut self) -> impl Iterator<Item = &mut Type> {
         self.positional_params.iter_mut()
+    }
+
+    pub fn has_keyword_params(&self) -> bool {
+        !self.keyword_params.is_empty()
+    }
+
+    pub fn keyword_params_count(&self) -> usize {
+        self.keyword_params.len()
     }
 
     pub fn return_type(&self) -> &Type {
@@ -550,6 +571,40 @@ impl Function {
         *substituted.return_type = substituted.return_type.substitute(variable, replacement);
 
         substituted
+    }
+}
+
+impl From<Signature> for Function {
+    fn from(value: Signature) -> Self {
+        Self::new(
+            Some(value.name.to_string()),
+            !value.self_param,
+            value
+                .positional_params
+                .iter()
+                .cloned()
+                .map(|param| param.ty.into())
+                .collect(),
+            value
+                .keyword_params
+                .iter()
+                .cloned()
+                .map(|param| (param.ident.to_string(), param.ty.into()))
+                .collect(),
+            value.return_ty.clone().map_or_else(Type::unit, Into::into),
+        )
+    }
+}
+
+impl From<ItemFn> for Function {
+    fn from(value: ItemFn) -> Self {
+        value.signature.into()
+    }
+}
+
+impl From<TraitFn> for Function {
+    fn from(value: TraitFn) -> Self {
+        value.signature.into()
     }
 }
 
@@ -642,6 +697,7 @@ pub struct TypedModule {
     type_constructors: HashMap<String, (Type, TypeMembers)>,
     value_constructors: HashMap<String, Type>,
     functions: HashMap<String, Type>,
+    traits: HashMap<String, (Trait, TraitImpls)>,
     closures: HashSet<SimpleSpan>,
 }
 
@@ -655,6 +711,7 @@ impl TypedModule {
             type_constructors: HashMap::new(),
             value_constructors: HashMap::new(),
             functions: HashMap::new(),
+            traits: HashMap::new(),
             closures: HashSet::new(),
         }
     }
@@ -716,6 +773,19 @@ impl TypedModule {
         self.closures.insert(span);
     }
 
+    pub fn get_trait_mut(&mut self, name: &str) -> Option<(&mut Trait, &mut TraitImpls)> {
+        self.traits
+            .get_mut(name)
+            .map(|(tr, tr_impls)| (tr, tr_impls))
+    }
+
+    pub fn add_trait<N>(&mut self, name: &N, tr: Trait)
+    where
+        N: ToString + ?Sized,
+    {
+        self.traits.insert(name.to_string(), (tr, HashMap::new()));
+    }
+
     pub fn items(&self) -> &[Item] {
         self.module.items()
     }
@@ -736,6 +806,7 @@ impl Debug for TypedModule {
             .field("type_constructors", &self.type_constructors)
             .field("value_constructors", &self.value_constructors)
             .field("functions", &self.functions)
+            .field("traits", &self.traits)
             .field("closures", &self.closures)
             .finish()
     }
