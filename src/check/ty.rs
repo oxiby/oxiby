@@ -636,7 +636,7 @@ impl TypeMembers {
 }
 
 #[derive(Clone)]
-pub struct ModuleTypes {
+pub struct TypedModule {
     module: Module,
     is_entry_module: bool,
     type_constructors: HashMap<String, (Type, TypeMembers)>,
@@ -645,7 +645,7 @@ pub struct ModuleTypes {
     closures: HashSet<SimpleSpan>,
 }
 
-impl ModuleTypes {
+impl TypedModule {
     pub fn new(module: Module) -> Self {
         let is_entry_module = module.is_entry_module();
 
@@ -728,9 +728,9 @@ impl ModuleTypes {
 }
 
 // Manual impl of Debug so all the items in the module aren't printed.
-impl Debug for ModuleTypes {
+impl Debug for TypedModule {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fmt.debug_struct("ModuleTypes")
+        fmt.debug_struct("TypedModule")
             .field("module", &self.module.to_string())
             .field("is_entry_module", &self.is_entry_module)
             .field("type_constructors", &self.type_constructors)

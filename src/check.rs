@@ -9,7 +9,7 @@ use crate::types;
 
 mod ty;
 
-pub use self::ty::{Function, ModuleTypes, PrimitiveType, Type, TypeMembers};
+pub use self::ty::{Function, TypedModule, PrimitiveType, Type, TypeMembers};
 
 pub trait Infer {
     fn infer(&self, checker: &mut Checker) -> Result<Type, Error>;
@@ -26,7 +26,7 @@ pub struct Checker {
     counter: usize,
     context: Vec<Entry>,
     current_module: String,
-    modules: HashMap<String, ModuleTypes>,
+    modules: HashMap<String, TypedModule>,
 }
 
 impl Checker {
@@ -37,7 +37,7 @@ impl Checker {
             current_module: entry_module_path_string,
             modules: modules
                 .into_iter()
-                .map(|(module_path, module)| (module_path, ModuleTypes::new(module)))
+                .map(|(module_path, module)| (module_path, TypedModule::new(module)))
                 .collect(),
         }
     }
@@ -124,13 +124,13 @@ impl Checker {
             self.modules
                 .clone()
                 .into_iter()
-                .collect::<HashMap<String, ModuleTypes>>()
+                .collect::<HashMap<String, TypedModule>>()
         } else {
             self.modules
                 .clone()
                 .into_iter()
                 .filter(|(name, _module_types)| !name.starts_with("std"))
-                .collect::<HashMap<String, ModuleTypes>>()
+                .collect::<HashMap<String, TypedModule>>()
         };
 
         eprintln!("{modules:#?}");
@@ -224,11 +224,11 @@ impl Checker {
         new_ty
     }
 
-    pub fn current_module(&self) -> &ModuleTypes {
+    pub fn current_module(&self) -> &TypedModule {
         &self.modules[&self.current_module]
     }
 
-    fn current_module_mut(&mut self) -> &mut ModuleTypes {
+    fn current_module_mut(&mut self) -> &mut TypedModule {
         self.modules
             .get_mut(&self.current_module)
             .expect("self.current_module should always be a valid key")
