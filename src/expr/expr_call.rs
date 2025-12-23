@@ -177,8 +177,42 @@ pub fn infer_function<'a>(
             EitherOrBoth::Both(ty, expr) => {
                 let expr_ty = expr.infer(checker)?;
 
-                if let check::Type::Variable(_) = ty {
-                    // TODO: Infer generics.
+                if let check::Type::Variable(_variable) = ty {
+                    for constraint in function.constraints() {
+                        for requirement in constraint.requirements() {
+                            let Some((trt, trt_impls)) =
+                                checker.get_trait(&requirement.base_name())
+                            else {
+                                return Err(Error::build("Unknown trait")
+                                    .with_detail(
+                                        &format!(
+                                            "Trait `{}` is not in scope.",
+                                            requirement.base_name()
+                                        ),
+                                        span,
+                                    )
+                                    .with_help(
+                                        "You might need to import this trait from another module.",
+                                    )
+                                    .finish());
+                            };
+
+                            if !trt_impls
+                                .keys()
+                                .any(|ty_name| *ty_name == expr_ty.base_name())
+                            {
+                                return Err(Error::build("Unsatisfied constraint")
+                                    .with_detail(
+                                        &format!(
+                                            "Argument was expected to implement trait `{trt}`, \
+                                             but type `{expr_ty}` does not."
+                                        ),
+                                        expr.span(),
+                                    )
+                                    .finish());
+                            }
+                        }
+                    }
                 } else if let check::Type::Variable(_) = expr_ty {
                     // TODO: Infer generics.
                 } else if *ty != expr_ty {

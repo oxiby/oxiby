@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Display;
 
 use crate::check::{self, Function};
 use crate::item::{ItemImpl, ItemTrait};
@@ -33,6 +34,12 @@ impl From<ItemTrait> for Trait {
                 }),
             functions: value.functions.into_iter().map(Into::into).collect(),
         }
+    }
+}
+
+impl Display for Trait {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.ty)
     }
 }
 
@@ -82,6 +89,12 @@ pub struct Constraint {
     variable: String,
     requirements: Vec<check::Type>,
     default: Option<check::Type>,
+}
+
+impl Constraint {
+    pub fn requirements(&self) -> &[check::Type] {
+        &self.requirements
+    }
 }
 
 impl From<types::Constraint> for Constraint {

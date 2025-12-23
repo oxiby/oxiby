@@ -616,6 +616,10 @@ impl TypedModule {
         self.closures.insert(span);
     }
 
+    pub fn get_trait(&self, name: &str) -> Option<(&Trait, &TraitImpls)> {
+        self.traits.get(name).map(|(tr, tr_impls)| (tr, tr_impls))
+    }
+
     pub fn get_trait_mut(&mut self, name: &str) -> Option<(&mut Trait, &mut TraitImpls)> {
         self.traits
             .get_mut(name)

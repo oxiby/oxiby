@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use chumsky::span::{SimpleSpan, Span};
 
-use crate::check::tr::Impl;
+use crate::check::tr::{Impl, TraitImpls};
 use crate::error::Error;
 use crate::item::{ImportedIdent, Item, ItemFn, Variant};
 use crate::module::{Module, ModulePath};
@@ -201,6 +201,10 @@ impl Checker {
                     Some(ty)
                 }
             })
+    }
+
+    pub fn get_trait(&self, name: &str) -> Option<(&Trait, &TraitImpls)> {
+        self.current_module().get_trait(name)
     }
 
     pub fn create_type_var(&mut self) -> Type {

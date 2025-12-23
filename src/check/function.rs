@@ -109,6 +109,10 @@ impl Function {
         &self.return_type
     }
 
+    pub fn constraints(&self) -> &[Constraint] {
+        &self.constraints
+    }
+
     pub fn substitute(&self, variable: &str, replacement: &Type) -> Self {
         let mut substituted = self.clone();
 
